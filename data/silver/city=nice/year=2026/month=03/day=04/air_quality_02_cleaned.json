@@ -1,0 +1,95 @@
+{
+    "timestamp_utc": "2026-03-04T03:00:00+00:00",
+    "hour": 2,
+    "hour_formatted": "02:00",
+    "city": "nice",
+    "station_id": 6886,
+    "station_name": "Nice Arson, PACA, France",
+    "station_coordinates": {
+        "lat": 43.702075,
+        "lon": 7.286256
+    },
+    "station_url": "https://aqicn.org/city/france/paca/nice-arson",
+    "aqi": 51,
+    "alert_level": "moderate",
+    "aqi_category": "moderate",
+    "dominant_pollutant_api": "pm25",
+    "pm25": 51,
+    "pm10": 18,
+    "no2": 7.8,
+    "o3": 14.6,
+    "co": null,
+    "so2": null,
+    "no": null,
+    "nh3": null,
+    "primary_pollutant": "pm25",
+    "pm25_to_pm10_ratio": 2.83,
+    "no2_to_o3_ratio": 0.53,
+    "temperature_celsius": 11.5,
+    "humidity_percent": 68.5,
+    "pressure_hpa": 1025,
+    "wind_speed_mps": 4.3,
+    "wind_gust_mps": null,
+    "dew_point_celsius": 6,
+    "health_risk": {
+        "score": 10.2,
+        "level": "moderate",
+        "outdoor_activity": "safe",
+        "sensitive_groups": "caution",
+        "mask_recommended": false
+    },
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 1,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 1,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 1,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 2
+        }
+    ],
+    "station_timezone": "+01:00",
+    "attributions": [
+        "L'observatoire de la qualit\u00c3\u00a9 de l'air en R\u00c3\u00a9gion Sud Provence-Alpes-C\u00c3\u00b4te d'Azur",
+        "World Air Quality Index Project"
+    ],
+    "_data_quality": {
+        "completeness_score": 0.5,
+        "available_pollutants": 4,
+        "total_pollutants": 8
+    },
+    "_lineage": {
+        "transformer": "AirQualityTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T02:51:52.537388+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=nice\\year=2026\\month=03\\day=04\\air_quality_02_raw.json"
+    }
+}

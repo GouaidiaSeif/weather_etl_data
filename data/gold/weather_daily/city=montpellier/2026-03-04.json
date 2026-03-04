@@ -1,0 +1,132 @@
+{
+    "city": "montpellier",
+    "date": "2026-03-04",
+    "records_count": 8,
+    "hours_covered": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "hourly_data": [
+        {
+            "hour": 0,
+            "hour_formatted": "00:00",
+            "temperature": 9.87,
+            "humidity": 89,
+            "wind_speed": 2.11,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 1,
+            "hour_formatted": "01:00",
+            "temperature": 9.26,
+            "humidity": 90,
+            "wind_speed": 2.14,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 2,
+            "hour_formatted": "02:00",
+            "temperature": 8.84,
+            "humidity": 91,
+            "wind_speed": 2.3,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 3,
+            "hour_formatted": "03:00",
+            "temperature": 8.79,
+            "humidity": 86,
+            "wind_speed": 2.32,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 4,
+            "hour_formatted": "04:00",
+            "temperature": 8.01,
+            "humidity": 92,
+            "wind_speed": 2.48,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 5,
+            "hour_formatted": "05:00",
+            "temperature": 8.31,
+            "humidity": 92,
+            "wind_speed": 2.73,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 6,
+            "hour_formatted": "06:00",
+            "temperature": 8.01,
+            "humidity": 92,
+            "wind_speed": 2.78,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 7,
+            "hour_formatted": "07:00",
+            "temperature": 8.92,
+            "humidity": 92,
+            "wind_speed": 2.46,
+            "weather": "clouds",
+            "uvi": 0.15
+        }
+    ],
+    "avg_temperature": 8.75,
+    "min_temperature": 8.01,
+    "max_temperature": 9.87,
+    "temp_range": 1.86,
+    "temp_volatility": 0.64,
+    "temp_trend": "falling",
+    "avg_feels_like": 7.41,
+    "avg_dew_point": 7.28,
+    "avg_humidity": 90.5,
+    "min_humidity": 86,
+    "max_humidity": 92,
+    "humidity_trend": "stable",
+    "avg_pressure": 1024.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 2.42,
+    "max_wind_speed": 2.78,
+    "max_wind_gust": 3.57,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 16.5,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 0.15,
+    "avg_uvi": 0.02,
+    "uvi_present": true,
+    "uvi_categories": [
+        "low"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clouds",
+    "weather_conditions": [
+        "clouds"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 24.9,
+        "level": "extreme",
+        "temp_comfort": 28.8,
+        "humidity_comfort": 19.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-04T08:51:54.573995",
+    "extreme_weather_flag": false
+}

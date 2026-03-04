@@ -1,0 +1,39 @@
+{
+    "city": "paris",
+    "date": "2026-03-04",
+    "avg_temperature": 7.98,
+    "temp_trend": "falling",
+    "max_wind_speed": 1.67,
+    "precipitation_detected": false,
+    "max_uvi": 0.11,
+    "avg_aqi": 71.0,
+    "aqi_trend": "falling",
+    "max_alert_level": "moderate",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "pm25",
+    "weather_comfort_score": 26.4,
+    "air_quality_score": 85.8,
+    "outdoor_activity_score": 62.0,
+    "weather_hours": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "air_quality_hours": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "outdoor_activity_recommendation": "good",
+    "health_advisory": "Sensitive groups caution",
+    "aggregated_at": "2026-03-04T08:51:55.782374"
+}

@@ -1,0 +1,41 @@
+{
+    "timestamp_utc": "2026-03-04T07:00:00+00:00",
+    "hour": 7,
+    "hour_formatted": "07:00",
+    "city": "marseille",
+    "temperature_celsius": 11.28,
+    "feels_like_celsius": 10.68,
+    "dew_point_celsius": 8.85,
+    "humidity_percent": 85,
+    "pressure_hpa": 1024,
+    "wind_speed_mps": 3.04,
+    "wind_gust_mps": 6.71,
+    "wind_direction_deg": 59,
+    "wind_direction_cardinal": "ENE",
+    "cloud_coverage_percent": 66,
+    "visibility_m": 10000,
+    "weather_main": "clouds",
+    "weather_description": "broken clouds",
+    "weather_icon": "04d",
+    "weather_id": 803,
+    "precipitation_probability_percent": 0,
+    "uvi": 0.16,
+    "uvi_category": "low",
+    "heat_index_celsius": null,
+    "weather_severity": "normal",
+    "latitude": 43.2965,
+    "longitude": 5.3698,
+    "timezone": "Europe/Paris",
+    "timezone_offset_seconds": 3600,
+    "_data_quality": {
+        "completeness_score": 1.0,
+        "available_core_fields": 5,
+        "total_core_fields": 5
+    },
+    "_lineage": {
+        "transformer": "WeatherTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T07:51:53.353130+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=marseille\\year=2026\\month=03\\day=04\\weather_07_raw.json"
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "timestamp_utc": "2026-03-04T05:00:00+00:00",
+    "hour": 5,
+    "hour_formatted": "05:00",
+    "city": "paris",
+    "temperature_celsius": 6.96,
+    "feels_like_celsius": 6.23,
+    "dew_point_celsius": 5.11,
+    "humidity_percent": 88,
+    "pressure_hpa": 1025,
+    "wind_speed_mps": 1.46,
+    "wind_gust_mps": 3.32,
+    "wind_direction_deg": 76,
+    "wind_direction_cardinal": "ENE",
+    "cloud_coverage_percent": 0,
+    "visibility_m": 10000,
+    "weather_main": "clear",
+    "weather_description": "clear sky",
+    "weather_icon": "01n",
+    "weather_id": 800,
+    "precipitation_probability_percent": 0,
+    "uvi": 0,
+    "uvi_category": "low",
+    "heat_index_celsius": null,
+    "weather_severity": "normal",
+    "latitude": 48.8566,
+    "longitude": 2.3522,
+    "timezone": "Europe/Paris",
+    "timezone_offset_seconds": 3600,
+    "_data_quality": {
+        "completeness_score": 1.0,
+        "available_core_fields": 5,
+        "total_core_fields": 5
+    },
+    "_lineage": {
+        "transformer": "WeatherTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T05:51:52.065192+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=paris\\year=2026\\month=03\\day=04\\weather_05_raw.json"
+    }
+}

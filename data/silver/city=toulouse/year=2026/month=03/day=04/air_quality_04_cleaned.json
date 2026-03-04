@@ -1,0 +1,102 @@
+{
+    "timestamp_utc": "2026-03-04T05:00:00+00:00",
+    "hour": 4,
+    "hour_formatted": "04:00",
+    "city": "toulouse",
+    "station_id": 3828,
+    "station_name": "Toulouse Berthelot, France",
+    "station_coordinates": {
+        "lat": 43.5873309,
+        "lon": 1.444026232
+    },
+    "station_url": "https://aqicn.org/city/france/midipyrenees/toulouse-berthelot",
+    "aqi": 36,
+    "alert_level": "good",
+    "aqi_category": "good",
+    "dominant_pollutant_api": "pm25",
+    "pm25": 36,
+    "pm10": 12,
+    "no2": 1.2,
+    "o3": 34.4,
+    "co": null,
+    "so2": null,
+    "no": null,
+    "nh3": null,
+    "primary_pollutant": "pm25",
+    "pm25_to_pm10_ratio": 3.0,
+    "no2_to_o3_ratio": 0.03,
+    "temperature_celsius": 12,
+    "humidity_percent": 76,
+    "pressure_hpa": 1021,
+    "wind_speed_mps": 5.6,
+    "wind_gust_mps": 14.9,
+    "dew_point_celsius": 8,
+    "health_risk": {
+        "score": 7.2,
+        "level": "good",
+        "outdoor_activity": "safe",
+        "sensitive_groups": "safe",
+        "mask_recommended": false
+    },
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-02",
+            "avg": 0,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 0,
+            "min": 0,
+            "max": 1
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 3
+        }
+    ],
+    "station_timezone": "+01:00",
+    "attributions": [
+        "Observatoire agr\u00c3\u00a9\u00c3\u00a9 pour assurer la surveillance de la qualit\u00c3\u00a9 de l\u00e2\u20ac\u2122air sur le territoire de la r\u00c3\u00a9gion Occitanie",
+        "European Environment Agency",
+        "World Air Quality Index Project"
+    ],
+    "_data_quality": {
+        "completeness_score": 0.5,
+        "available_pollutants": 4,
+        "total_pollutants": 8
+    },
+    "_lineage": {
+        "transformer": "AirQualityTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T04:51:51.978067+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=toulouse\\year=2026\\month=03\\day=04\\air_quality_04_raw.json"
+    }
+}

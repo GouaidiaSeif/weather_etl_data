@@ -1,0 +1,95 @@
+{
+    "timestamp_utc": "2026-03-04T07:00:00+00:00",
+    "hour": 6,
+    "hour_formatted": "06:00",
+    "city": "marseille",
+    "station_id": 14082,
+    "station_name": "Marseille_PlaceVerneuil, PACA, France",
+    "station_coordinates": {
+        "lat": 43.30885,
+        "lon": 5.36788
+    },
+    "station_url": "https://aqicn.org/city/france/paca/marseille_placeverneuil",
+    "aqi": 1,
+    "alert_level": "good",
+    "aqi_category": "good",
+    "dominant_pollutant_api": "so2",
+    "pm25": null,
+    "pm10": null,
+    "no2": 26.5,
+    "o3": null,
+    "co": null,
+    "so2": 0.6,
+    "no": null,
+    "nh3": null,
+    "primary_pollutant": "no2",
+    "pm25_to_pm10_ratio": null,
+    "no2_to_o3_ratio": null,
+    "temperature_celsius": 9.4,
+    "humidity_percent": 79,
+    "pressure_hpa": 1023.2,
+    "wind_speed_mps": 1,
+    "wind_gust_mps": 4,
+    "dew_point_celsius": null,
+    "health_risk": {
+        "score": 0.2,
+        "level": "good",
+        "outdoor_activity": "safe",
+        "sensitive_groups": "safe",
+        "mask_recommended": false
+    },
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 2
+        }
+    ],
+    "station_timezone": "+01:00",
+    "attributions": [
+        "L'observatoire de la qualit\u00c3\u00a9 de l'air en R\u00c3\u00a9gion Sud Provence-Alpes-C\u00c3\u00b4te d'Azur",
+        "World Air Quality Index Project"
+    ],
+    "_data_quality": {
+        "completeness_score": 0.25,
+        "available_pollutants": 2,
+        "total_pollutants": 8
+    },
+    "_lineage": {
+        "transformer": "AirQualityTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T06:51:54.325899+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=marseille\\year=2026\\month=03\\day=04\\air_quality_06_raw.json"
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "timestamp_utc": "2026-03-04T04:00:00+00:00",
+    "hour": 4,
+    "hour_formatted": "04:00",
+    "city": "lille",
+    "temperature_celsius": 4.21,
+    "feels_like_celsius": 2.79,
+    "dew_point_celsius": 3.33,
+    "humidity_percent": 94,
+    "pressure_hpa": 1026,
+    "wind_speed_mps": 1.7,
+    "wind_gust_mps": 1.65,
+    "wind_direction_deg": 86,
+    "wind_direction_cardinal": "E",
+    "cloud_coverage_percent": 18,
+    "visibility_m": 10000,
+    "weather_main": "clouds",
+    "weather_description": "few clouds",
+    "weather_icon": "02n",
+    "weather_id": 801,
+    "precipitation_probability_percent": 0,
+    "uvi": 0,
+    "uvi_category": "low",
+    "heat_index_celsius": null,
+    "weather_severity": "normal",
+    "latitude": 50.6292,
+    "longitude": 3.0573,
+    "timezone": "Europe/Paris",
+    "timezone_offset_seconds": 3600,
+    "_data_quality": {
+        "completeness_score": 1.0,
+        "available_core_fields": 5,
+        "total_core_fields": 5
+    },
+    "_lineage": {
+        "transformer": "WeatherTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T04:51:52.129612+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=lille\\year=2026\\month=03\\day=04\\weather_04_raw.json"
+    }
+}

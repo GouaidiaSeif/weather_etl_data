@@ -1,0 +1,41 @@
+{
+    "timestamp_utc": "2026-03-04T00:00:00+00:00",
+    "hour": 0,
+    "hour_formatted": "00:00",
+    "city": "toulouse",
+    "temperature_celsius": 12.23,
+    "feels_like_celsius": 11.7,
+    "dew_point_celsius": 9.61,
+    "humidity_percent": 84,
+    "pressure_hpa": 1022,
+    "wind_speed_mps": 5.72,
+    "wind_gust_mps": 12.54,
+    "wind_direction_deg": 119,
+    "wind_direction_cardinal": "ESE",
+    "cloud_coverage_percent": 11,
+    "visibility_m": 10000,
+    "weather_main": "clouds",
+    "weather_description": "few clouds",
+    "weather_icon": "02n",
+    "weather_id": 801,
+    "precipitation_probability_percent": 0,
+    "uvi": 0,
+    "uvi_category": "low",
+    "heat_index_celsius": null,
+    "weather_severity": "moderate",
+    "latitude": 43.6047,
+    "longitude": 1.4442,
+    "timezone": "Europe/Paris",
+    "timezone_offset_seconds": 3600,
+    "_data_quality": {
+        "completeness_score": 1.0,
+        "available_core_fields": 5,
+        "total_core_fields": 5
+    },
+    "_lineage": {
+        "transformer": "WeatherTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T00:51:51.898795+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=toulouse\\year=2026\\month=03\\day=04\\weather_00_raw.json"
+    }
+}

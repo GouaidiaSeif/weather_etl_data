@@ -1,0 +1,165 @@
+{
+    "city": "toulouse",
+    "date": "2026-03-04",
+    "records_count": 8,
+    "hours_covered": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "hourly_data": [
+        {
+            "hour": 0,
+            "hour_formatted": "00:00",
+            "aqi": 41,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 41,
+            "pm10": 14
+        },
+        {
+            "hour": 1,
+            "hour_formatted": "01:00",
+            "aqi": 41,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 41,
+            "pm10": 13
+        },
+        {
+            "hour": 2,
+            "hour_formatted": "02:00",
+            "aqi": 41,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 41,
+            "pm10": 13
+        },
+        {
+            "hour": 3,
+            "hour_formatted": "03:00",
+            "aqi": 36,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 36,
+            "pm10": 12
+        },
+        {
+            "hour": 4,
+            "hour_formatted": "04:00",
+            "aqi": 36,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 36,
+            "pm10": 12
+        },
+        {
+            "hour": 5,
+            "hour_formatted": "05:00",
+            "aqi": 36,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 36,
+            "pm10": 12
+        },
+        {
+            "hour": 6,
+            "hour_formatted": "06:00",
+            "aqi": 38,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 38,
+            "pm10": 14
+        },
+        {
+            "hour": 7,
+            "hour_formatted": "07:00",
+            "aqi": 41,
+            "alert_level": "good",
+            "primary_pollutant": "pm25",
+            "pm25": 41,
+            "pm10": 14
+        }
+    ],
+    "avg_aqi": 38.75,
+    "min_aqi": 36,
+    "max_aqi": 41,
+    "aqi_volatility": 2.49,
+    "aqi_trend": "falling",
+    "max_alert_level": "good",
+    "alert_levels_distribution": {
+        "good": 8
+    },
+    "unhealthy_hours_count": 0,
+    "unhealthy_hours_percent": 0.0,
+    "avg_pm25": 38.75,
+    "avg_pm10": 13.0,
+    "avg_no2": 1.75,
+    "avg_o3": 33.41,
+    "avg_co": null,
+    "avg_so2": null,
+    "max_pm25": 41,
+    "max_pm10": 14,
+    "dominant_primary_pollutant": "pm25",
+    "primary_pollutants": [
+        "pm25"
+    ],
+    "avg_health_risk_score": 7.8,
+    "max_health_risk_score": 8.2,
+    "avg_temperature": 12.0,
+    "avg_humidity": 78.5,
+    "avg_pressure": 1021.38,
+    "avg_wind_speed": 5.4,
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-02",
+            "avg": 0,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 0,
+            "min": 0,
+            "max": 1
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 3
+        }
+    ],
+    "data_quality_score": 0.5,
+    "aggregated_at": "2026-03-04T08:51:55.498301",
+    "significant_pollution_flag": false
+}

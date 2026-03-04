@@ -1,0 +1,132 @@
+{
+    "city": "lille",
+    "date": "2026-03-04",
+    "records_count": 8,
+    "hours_covered": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "hourly_data": [
+        {
+            "hour": 0,
+            "hour_formatted": "00:00",
+            "temperature": 6.16,
+            "humidity": 92,
+            "wind_speed": 1.65,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 1,
+            "hour_formatted": "01:00",
+            "temperature": 5.48,
+            "humidity": 96,
+            "wind_speed": 1.85,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 2,
+            "hour_formatted": "02:00",
+            "temperature": 6.44,
+            "humidity": 92,
+            "wind_speed": 1.92,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 3,
+            "hour_formatted": "03:00",
+            "temperature": 4.28,
+            "humidity": 94,
+            "wind_speed": 1.84,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 4,
+            "hour_formatted": "04:00",
+            "temperature": 4.21,
+            "humidity": 94,
+            "wind_speed": 1.7,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 5,
+            "hour_formatted": "05:00",
+            "temperature": 6.05,
+            "humidity": 93,
+            "wind_speed": 1.75,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 6,
+            "hour_formatted": "06:00",
+            "temperature": 6.02,
+            "humidity": 93,
+            "wind_speed": 1.87,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 7,
+            "hour_formatted": "07:00",
+            "temperature": 3.46,
+            "humidity": 99,
+            "wind_speed": 1.71,
+            "weather": "clouds",
+            "uvi": 0.1
+        }
+    ],
+    "avg_temperature": 5.26,
+    "min_temperature": 3.46,
+    "max_temperature": 6.44,
+    "temp_range": 2.98,
+    "temp_volatility": 1.12,
+    "temp_trend": "falling",
+    "avg_feels_like": 3.9,
+    "avg_dew_point": 4.39,
+    "avg_humidity": 94.12,
+    "min_humidity": 92,
+    "max_humidity": 99,
+    "humidity_trend": "stable",
+    "avg_pressure": 1026.12,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 1.79,
+    "max_wind_speed": 1.92,
+    "max_wind_gust": 1.87,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 22.38,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 0.1,
+    "avg_uvi": 0.01,
+    "uvi_present": true,
+    "uvi_categories": [
+        "low"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clouds",
+    "weather_conditions": [
+        "clouds"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 11.5,
+        "level": "extreme",
+        "temp_comfort": 11.3,
+        "humidity_comfort": 11.8
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-04T08:51:54.565715",
+    "extreme_weather_flag": false
+}

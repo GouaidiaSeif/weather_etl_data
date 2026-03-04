@@ -1,0 +1,95 @@
+{
+    "timestamp_utc": "2026-03-04T05:00:00+00:00",
+    "hour": 4,
+    "hour_formatted": "04:00",
+    "city": "nantes",
+    "station_id": 4995,
+    "station_name": "Bouteillerie, Nantes, Loire, France",
+    "station_coordinates": {
+        "lat": 47.2222,
+        "lon": -1.53743
+    },
+    "station_url": "https://aqicn.org/city/france/loire/nantes/bouteillerie",
+    "aqi": 51,
+    "alert_level": "moderate",
+    "aqi_category": "moderate",
+    "dominant_pollutant_api": "pm25",
+    "pm25": 51,
+    "pm10": 15,
+    "no2": 7.9,
+    "o3": 4,
+    "co": null,
+    "so2": null,
+    "no": null,
+    "nh3": null,
+    "primary_pollutant": "pm25",
+    "pm25_to_pm10_ratio": 3.4,
+    "no2_to_o3_ratio": 1.98,
+    "temperature_celsius": 9,
+    "humidity_percent": 81,
+    "pressure_hpa": 1022,
+    "wind_speed_mps": 2.3,
+    "wind_gust_mps": null,
+    "dew_point_celsius": 6,
+    "health_risk": {
+        "score": 10.2,
+        "level": "moderate",
+        "outdoor_activity": "safe",
+        "sensitive_groups": "caution",
+        "mask_recommended": false
+    },
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 2
+        }
+    ],
+    "station_timezone": "+01:00",
+    "attributions": [
+        "Air Pays de la Loire",
+        "World Air Quality Index Project"
+    ],
+    "_data_quality": {
+        "completeness_score": 0.5,
+        "available_pollutants": 4,
+        "total_pollutants": 8
+    },
+    "_lineage": {
+        "transformer": "AirQualityTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T04:51:52.032070+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=nantes\\year=2026\\month=03\\day=04\\air_quality_04_raw.json"
+    }
+}

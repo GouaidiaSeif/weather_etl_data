@@ -1,0 +1,101 @@
+{
+    "timestamp_utc": "2026-03-04T04:00:00+00:00",
+    "hour": 4,
+    "hour_formatted": "04:00",
+    "city": "bordeaux",
+    "station_id": 14097,
+    "station_name": "Bordeaux Gautier, Aquitaine, France",
+    "station_coordinates": {
+        "lat": 44.83383,
+        "lon": -0.59853
+    },
+    "station_url": "https://aqicn.org/city/france/aquitaine/bordeaux-gautier",
+    "aqi": 46,
+    "alert_level": "good",
+    "aqi_category": "good",
+    "dominant_pollutant_api": "pm25",
+    "pm25": 46,
+    "pm10": 15,
+    "no2": 5.5,
+    "o3": 3.3,
+    "co": null,
+    "so2": null,
+    "no": null,
+    "nh3": null,
+    "primary_pollutant": "pm25",
+    "pm25_to_pm10_ratio": 3.07,
+    "no2_to_o3_ratio": 1.67,
+    "temperature_celsius": 10,
+    "humidity_percent": 87,
+    "pressure_hpa": 1020,
+    "wind_speed_mps": 2.5,
+    "wind_gust_mps": null,
+    "dew_point_celsius": 8,
+    "health_risk": {
+        "score": 9.2,
+        "level": "good",
+        "outdoor_activity": "safe",
+        "sensitive_groups": "safe",
+        "mask_recommended": false
+    },
+    "uvi_forecast_daily": [
+        {
+            "date": "2026-03-02",
+            "avg": 0,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-03",
+            "avg": 0,
+            "min": 0,
+            "max": 3
+        },
+        {
+            "date": "2026-03-04",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-05",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-06",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-07",
+            "avg": 0,
+            "min": 0,
+            "max": 2
+        },
+        {
+            "date": "2026-03-08",
+            "avg": 1,
+            "min": 0,
+            "max": 3
+        }
+    ],
+    "station_timezone": "+01:00",
+    "attributions": [
+        "AtmoNAQ - La qualit\u00c3\u00a9 de l&#8217;air en Nouvelle Aquitaine",
+        "World Air Quality Index Project"
+    ],
+    "_data_quality": {
+        "completeness_score": 0.5,
+        "available_pollutants": 4,
+        "total_pollutants": 8
+    },
+    "_lineage": {
+        "transformer": "AirQualityTransformer",
+        "version": "3.0",
+        "transformed_at": "2026-03-04T04:51:52.117615+00:00",
+        "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=bordeaux\\year=2026\\month=03\\day=04\\air_quality_04_raw.json"
+    }
+}

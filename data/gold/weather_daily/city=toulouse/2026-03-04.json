@@ -1,0 +1,133 @@
+{
+    "city": "toulouse",
+    "date": "2026-03-04",
+    "records_count": 8,
+    "hours_covered": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+    ],
+    "hourly_data": [
+        {
+            "hour": 0,
+            "hour_formatted": "00:00",
+            "temperature": 12.23,
+            "humidity": 84,
+            "wind_speed": 5.72,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 1,
+            "hour_formatted": "01:00",
+            "temperature": 12.07,
+            "humidity": 84,
+            "wind_speed": 6.54,
+            "weather": "clear",
+            "uvi": 0
+        },
+        {
+            "hour": 2,
+            "hour_formatted": "02:00",
+            "temperature": 11.91,
+            "humidity": 83,
+            "wind_speed": 6.54,
+            "weather": "clear",
+            "uvi": 0
+        },
+        {
+            "hour": 3,
+            "hour_formatted": "03:00",
+            "temperature": 11.75,
+            "humidity": 78,
+            "wind_speed": 6.63,
+            "weather": "clear",
+            "uvi": 0
+        },
+        {
+            "hour": 4,
+            "hour_formatted": "04:00",
+            "temperature": 11.81,
+            "humidity": 78,
+            "wind_speed": 6.75,
+            "weather": "clear",
+            "uvi": 0
+        },
+        {
+            "hour": 5,
+            "hour_formatted": "05:00",
+            "temperature": 11.89,
+            "humidity": 77,
+            "wind_speed": 7.19,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 6,
+            "hour_formatted": "06:00",
+            "temperature": 11.89,
+            "humidity": 81,
+            "wind_speed": 7.3,
+            "weather": "clouds",
+            "uvi": 0
+        },
+        {
+            "hour": 7,
+            "hour_formatted": "07:00",
+            "temperature": 12.05,
+            "humidity": 77,
+            "wind_speed": 7.97,
+            "weather": "clear",
+            "uvi": 0.1
+        }
+    ],
+    "avg_temperature": 11.95,
+    "min_temperature": 11.75,
+    "max_temperature": 12.23,
+    "temp_range": 0.48,
+    "temp_volatility": 0.16,
+    "temp_trend": "stable",
+    "avg_feels_like": 11.3,
+    "avg_dew_point": 8.65,
+    "avg_humidity": 80.25,
+    "min_humidity": 77,
+    "max_humidity": 84,
+    "humidity_trend": "stable",
+    "avg_pressure": 1021.25,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 6.83,
+    "max_wind_speed": 7.97,
+    "max_wind_gust": 16.26,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 11.5,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 0.1,
+    "avg_uvi": 0.01,
+    "uvi_present": true,
+    "uvi_categories": [
+        "low"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clear",
+    "weather_conditions": [
+        "clouds",
+        "clear"
+    ],
+    "max_severity": "moderate",
+    "comfort_index": {
+        "score": 42.7,
+        "level": "uncomfortable",
+        "temp_comfort": 44.8,
+        "humidity_comfort": 39.5
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-04T08:51:54.587734",
+    "extreme_weather_flag": false
+}
