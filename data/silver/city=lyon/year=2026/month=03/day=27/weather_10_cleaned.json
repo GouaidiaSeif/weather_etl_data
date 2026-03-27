@@ -1,0 +1,41 @@
+{
+  "timestamp_utc": "2026-03-27T10:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "lyon",
+  "temperature_celsius": 6.08,
+  "feels_like_celsius": 1.75,
+  "dew_point_celsius": -1.37,
+  "humidity_percent": 58,
+  "pressure_hpa": 1021,
+  "wind_speed_mps": 7.46,
+  "wind_gust_mps": 11.98,
+  "wind_direction_deg": 358,
+  "wind_direction_cardinal": "N",
+  "cloud_coverage_percent": 20,
+  "visibility_m": 10000,
+  "weather_main": "clouds",
+  "weather_description": "few clouds",
+  "weather_icon": "02d",
+  "weather_id": 801,
+  "precipitation_probability_percent": 0,
+  "uvi": 3.44,
+  "uvi_category": "moderate",
+  "heat_index_celsius": null,
+  "weather_severity": "moderate",
+  "latitude": 45.764,
+  "longitude": 4.8357,
+  "timezone": "Europe/Paris",
+  "timezone_offset_seconds": 3600,
+  "_data_quality": {
+    "completeness_score": 1.0,
+    "available_core_fields": 5,
+    "total_core_fields": 5
+  },
+  "_lineage": {
+    "transformer": "WeatherTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.269246+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=lyon\\year=2026\\month=03\\day=27\\weather_10_raw.json"
+  }
+}

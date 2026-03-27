@@ -1,0 +1,26 @@
+{
+    "city": "nice",
+    "date": "2026-03-27",
+    "avg_temperature": 14.37,
+    "temp_trend": "stable",
+    "max_wind_speed": 2.72,
+    "precipitation_detected": false,
+    "max_uvi": 3.36,
+    "avg_aqi": 36.0,
+    "aqi_trend": "stable",
+    "max_alert_level": "good",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "o3",
+    "weather_comfort_score": 59.7,
+    "air_quality_score": 92.8,
+    "outdoor_activity_score": 79.6,
+    "weather_hours": [
+        10
+    ],
+    "air_quality_hours": [
+        10
+    ],
+    "outdoor_activity_recommendation": "good",
+    "health_advisory": "No restrictions",
+    "aggregated_at": "2026-03-27T11:28:42.715487"
+}

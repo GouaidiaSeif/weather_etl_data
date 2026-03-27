@@ -1,0 +1,26 @@
+{
+    "city": "toulouse",
+    "date": "2026-03-27",
+    "avg_temperature": 9.97,
+    "temp_trend": "stable",
+    "max_wind_speed": 6.01,
+    "precipitation_detected": false,
+    "max_uvi": 3.96,
+    "avg_aqi": 25.0,
+    "aqi_trend": "stable",
+    "max_alert_level": "good",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "o3",
+    "weather_comfort_score": 58.5,
+    "air_quality_score": 95.0,
+    "outdoor_activity_score": 80.4,
+    "weather_hours": [
+        10
+    ],
+    "air_quality_hours": [
+        10
+    ],
+    "outdoor_activity_recommendation": "excellent",
+    "health_advisory": "No restrictions",
+    "aggregated_at": "2026-03-27T11:28:42.696765"
+}

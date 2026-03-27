@@ -4,11 +4,9 @@ This script uses APScheduler to run the ETL job every hour:
 - Weather data: Fetched, transformed to Silver, aggregated to Gold
 - Air quality data: Fetched, transformed to Silver, aggregated to Gold
 
-FIXED: Now uses transformations.pipline_final which includes:
-  1. Extraction from APIs (OpenWeather + AQICN)
-  2. RAW storage (Bronze layer)
-  3. Transformation to Silver layer
-  4. Aggregation to Gold layer
+Data is stored in:
+  - Filesystem: Bronze (Raw), Silver (Cleaned), Gold (Aggregated)
+  - MongoDB: Silver (Cleaned) and Gold (Aggregated) only
 
 Logs are saved to both console and text files in the directory specified by settings.log_path.
 """
@@ -25,7 +23,7 @@ from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-# FIXED: Import from pipline_final which has the COMPLETE pipeline (extract + transform + gold)
+# Import from pipline_final which has the COMPLETE pipeline (extract + transform + gold)
 from transformations.pipline_final import run_hourly_etl_job
 from config.settings import get_settings
 
@@ -104,23 +102,23 @@ def run_scheduled_etl():
     
     This function orchestrates the complete ETL flow:
     1. Extract weather and air quality data from APIs
-    2. Save RAW data (Bronze layer)
-    3. Transform to Silver layer (cleaned & standardized)
-    4. Aggregate to Gold layer (daily analytics with KPIs)
+    2. Save RAW data (Bronze layer - filesystem only)
+    3. Transform to Silver layer (filesystem + MongoDB)
+    4. Aggregate to Gold layer (filesystem + MongoDB)
     """
     logger = logging.getLogger(__name__)
     
     logger.info("=" * 70)
     logger.info(f"Starting hourly ETL job at {datetime.now(timezone.utc).isoformat()}")
-    logger.info("Flow: Extract → RAW (Bronze) → Transform → Silver → Aggregate → Gold")
+    logger.info("Flow: Extract → RAW (Bronze/filesystem) → Transform → Silver (fs+MongoDB) → Aggregate → Gold (fs+MongoDB)")
     logger.info("=" * 70)
     
     try:
         # This runs the COMPLETE pipeline from pipline_final.py:
         # - Extracts from both APIs for all towns
-        # - Saves RAW data to data/raw/
-        # - Transforms and saves SILVER data to data/silver/
-        # - Aggregates and saves GOLD data to data/gold/
+        # - Saves RAW data to data/raw/ (filesystem only)
+        # - Transforms and saves SILVER data to data/silver/ + MongoDB
+        # - Aggregates and saves GOLD data to data/gold/ + MongoDB
         summary = run_hourly_etl_job(hours_back=1)
         
         logger.info("-" * 70)
@@ -131,17 +129,24 @@ def run_scheduled_etl():
         logger.info(f"  Success rate: {summary['success_rate']:.1%}")
         logger.info(f"  Total files saved: {summary['total_files_saved']}")
         
+        # Log MongoDB stats if available
+        if 'mongodb_stats' in summary:
+            logger.info("-" * 70)
+            logger.info("MongoDB Insertions (Silver + Gold layers only):")
+            for collection, count in summary['mongodb_stats'].items():
+                logger.info(f"  {collection}: {count} documents")
+        
         for api_name, stats in summary['api_breakdown'].items():
             logger.info(f"  {api_name}: {stats['success']} success, {stats['failed']} failed, {stats.get('files', 0)} files")
         
         # Log layer information
         logger.info("-" * 70)
         logger.info("Data Layers:")
-        logger.info("  Bronze (RAW):     data/raw/city={name}/year=YYYY/month=MM/day=DD/*_raw.json")
-        logger.info("  Silver (Clean):   data/silver/city={name}/year=YYYY/month=MM/day=DD/*_cleaned.json")
-        logger.info("  Gold (Analytics): data/gold/weather_daily/city={name}/YYYY-MM-DD.json")
-        logger.info("                    data/gold/air_quality_daily/city={name}/YYYY-MM-DD.json")
-        logger.info("                    data/gold/combined_daily/city={name}/YYYY-MM-DD.json")
+        logger.info("  Bronze (RAW):     data/raw/city={name}/year=YYYY/month=MM/day=DD/*_raw.json (filesystem only)")
+        logger.info("  Silver (Clean):   data/silver/city={name}/year=YYYY/month=MM/day=DD/*_cleaned.json (fs + MongoDB)")
+        logger.info("  Gold (Analytics): data/gold/weather_daily/city={name}/YYYY-MM-DD.json (fs + MongoDB)")
+        logger.info("                    data/gold/air_quality_daily/city={name}/YYYY-MM-DD.json (fs + MongoDB)")
+        logger.info("                    data/gold/combined_daily/city={name}/YYYY-MM-DD.json (fs + MongoDB)")
         logger.info("-" * 70)
         
     except Exception as e:
@@ -165,7 +170,7 @@ def main():
     logger = setup_scheduler_logging(settings.log_path)
     
     logger.info("=" * 70)
-    logger.info("Weather ETL Scheduler (Complete Pipeline)")
+    logger.info("Weather ETL Scheduler (Complete Pipeline with MongoDB)")
     logger.info(f"Log directory: {settings.log_path}")
     logger.info("=" * 70)
     logger.info("This scheduler runs every hour with FULL pipeline:")
@@ -173,16 +178,23 @@ def main():
     logger.info("    - Weather ETL: Fetch from OpenWeather API")
     logger.info("    - Air Quality ETL: Fetch from AQICN API")
     logger.info("  Phase 2: BRONZE LAYER (RAW)")
-    logger.info("    - Save original API responses")
+    logger.info("    - Save original API responses (filesystem only)")
     logger.info("  Phase 3: SILVER LAYER (Transformed)")
     logger.info("    - Clean, validate, and standardize data")
+    logger.info("    - Save to filesystem AND MongoDB")
     logger.info("  Phase 4: GOLD LAYER (Aggregated)")
     logger.info("    - Daily aggregations with KPIs")
     logger.info("    - Cross-domain analytics")
+    logger.info("    - Save to filesystem AND MongoDB")
     logger.info("=" * 70)
     logger.info("Data is stored in hive-style partitions:")
     logger.info("  Weather:       city={name}/year={YYYY}/month={MM}/day={DD}/weather_{HH}_raw.json")
     logger.info("  Air Quality:   city={name}/year={YYYY}/month={MM}/day={DD}/air_quality_{HH}_raw.json")
+    logger.info("=" * 70)
+    logger.info("MongoDB Collections (Silver + Gold only):")
+    logger.info("  - silver_weather: Cleaned weather data")
+    logger.info("  - silver_air_quality: Cleaned air quality data")
+    logger.info("  - gold_daily: Aggregated daily analytics")
     logger.info("=" * 70)
     
     signal.signal(signal.SIGINT, signal_handler)

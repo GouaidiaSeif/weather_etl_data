@@ -1,0 +1,107 @@
+{
+  "timestamp_utc": "2026-03-27T11:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "lyon",
+  "station_id": 3028,
+  "station_name": "Lyon Centre, France",
+  "station_coordinates": {
+    "lat": 45.75779318439,
+    "lon": 4.854217317644
+  },
+  "station_url": "https://aqicn.org/city/france/rhonealpes/rhone/lyon-centre",
+  "aqi": 41,
+  "alert_level": "good",
+  "aqi_category": "good",
+  "dominant_pollutant_api": "pm25",
+  "pm25": 41,
+  "pm10": 15,
+  "no2": 3.4,
+  "o3": 23.6,
+  "co": null,
+  "so2": null,
+  "no": null,
+  "nh3": null,
+  "primary_pollutant": "pm25",
+  "pm25_to_pm10_ratio": 2.73,
+  "no2_to_o3_ratio": 0.14,
+  "temperature_celsius": 6,
+  "humidity_percent": 56,
+  "pressure_hpa": 1021,
+  "wind_speed_mps": 8.7,
+  "wind_gust_mps": 12.8,
+  "dew_point_celsius": -2,
+  "health_risk": {
+    "score": 8.2,
+    "level": "good",
+    "outdoor_activity": "safe",
+    "sensitive_groups": "safe",
+    "mask_recommended": false
+  },
+  "uvi_forecast_daily": [
+    {
+      "date": "2026-03-25",
+      "avg": 1,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-26",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-27",
+      "avg": 1,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-03-28",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-29",
+      "avg": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-03-30",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-31",
+      "avg": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-04-01",
+      "avg": 0,
+      "min": 0,
+      "max": 0
+    }
+  ],
+  "station_timezone": "+01:00",
+  "attributions": [
+    "Observatoire de la qualit\u00c3\u00a9 de l'air en Auvergne-Rh\u00c3\u00b4ne-Alpes",
+    "World Air Quality Index Project"
+  ],
+  "_data_quality": {
+    "completeness_score": 0.5,
+    "available_pollutants": 4,
+    "total_pollutants": 8
+  },
+  "_lineage": {
+    "transformer": "AirQualityTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.289308+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=lyon\\year=2026\\month=03\\day=27\\air_quality_10_raw.json"
+  }
+}

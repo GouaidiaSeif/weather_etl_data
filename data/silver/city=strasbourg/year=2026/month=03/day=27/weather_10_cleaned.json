@@ -1,0 +1,41 @@
+{
+  "timestamp_utc": "2026-03-27T10:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "strasbourg",
+  "temperature_celsius": 6.02,
+  "feels_like_celsius": 3.91,
+  "dew_point_celsius": -0.82,
+  "humidity_percent": 61,
+  "pressure_hpa": 1024,
+  "wind_speed_mps": 2.75,
+  "wind_gust_mps": 3.54,
+  "wind_direction_deg": 35,
+  "wind_direction_cardinal": "NE",
+  "cloud_coverage_percent": 75,
+  "visibility_m": 10000,
+  "weather_main": "clouds",
+  "weather_description": "broken clouds",
+  "weather_icon": "04d",
+  "weather_id": 803,
+  "precipitation_probability_percent": 0,
+  "uvi": 2.82,
+  "uvi_category": "moderate",
+  "heat_index_celsius": null,
+  "weather_severity": "normal",
+  "latitude": 48.5734,
+  "longitude": 7.7521,
+  "timezone": "Europe/Paris",
+  "timezone_offset_seconds": 3600,
+  "_data_quality": {
+    "completeness_score": 1.0,
+    "available_core_fields": 5,
+    "total_core_fields": 5
+  },
+  "_lineage": {
+    "transformer": "WeatherTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.462852+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=strasbourg\\year=2026\\month=03\\day=27\\weather_10_raw.json"
+  }
+}

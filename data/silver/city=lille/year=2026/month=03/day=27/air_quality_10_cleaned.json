@@ -1,0 +1,101 @@
+{
+  "timestamp_utc": "2026-03-27T10:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "lille",
+  "station_id": 6973,
+  "station_name": "Menen, Belgium",
+  "station_coordinates": {
+    "lat": 50.7934690465272,
+    "lon": 3.10964187480641
+  },
+  "station_url": "https://aqicn.org/city/belgium/fla/menen",
+  "aqi": 53,
+  "alert_level": "moderate",
+  "aqi_category": "moderate",
+  "dominant_pollutant_api": "pm25",
+  "pm25": 53,
+  "pm10": 34,
+  "no2": null,
+  "o3": null,
+  "co": null,
+  "so2": null,
+  "no": null,
+  "nh3": null,
+  "primary_pollutant": "pm25",
+  "pm25_to_pm10_ratio": 1.56,
+  "no2_to_o3_ratio": null,
+  "temperature_celsius": 10.1,
+  "humidity_percent": 81.5,
+  "pressure_hpa": 1027.1,
+  "wind_speed_mps": 7,
+  "wind_gust_mps": 14.2,
+  "dew_point_celsius": null,
+  "health_risk": {
+    "score": 10.6,
+    "level": "moderate",
+    "outdoor_activity": "safe",
+    "sensitive_groups": "caution",
+    "mask_recommended": false
+  },
+  "uvi_forecast_daily": [
+    {
+      "date": "2026-03-25",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-26",
+      "avg": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-03-27",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-28",
+      "avg": 1,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-03-29",
+      "avg": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "date": "2026-03-30",
+      "avg": 0,
+      "min": 0,
+      "max": 2
+    },
+    {
+      "date": "2026-03-31",
+      "avg": 0,
+      "min": 0,
+      "max": 3
+    }
+  ],
+  "station_timezone": "+01:00",
+  "attributions": [
+    "IRCEL-CELINE - Belgian Interregional Environment Agency",
+    "World Air Quality Index Project"
+  ],
+  "_data_quality": {
+    "completeness_score": 0.25,
+    "available_pollutants": 2,
+    "total_pollutants": 8
+  },
+  "_lineage": {
+    "transformer": "AirQualityTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.562875+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=lille\\year=2026\\month=03\\day=27\\air_quality_10_raw.json"
+  }
+}

@@ -1,0 +1,62 @@
+{
+    "city": "toulouse",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 9.97,
+            "humidity": 53,
+            "wind_speed": 6.01,
+            "weather": "clouds",
+            "uvi": 3.96
+        }
+    ],
+    "avg_temperature": 9.97,
+    "min_temperature": 9.97,
+    "max_temperature": 9.97,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 7.2,
+    "avg_dew_point": 0.84,
+    "avg_humidity": 53.0,
+    "min_humidity": 53,
+    "max_humidity": 53,
+    "humidity_trend": "stable",
+    "avg_pressure": 1024.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 6.01,
+    "max_wind_speed": 6.01,
+    "max_wind_gust": 7.91,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 40.0,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 3.96,
+    "avg_uvi": 3.96,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clouds",
+    "weather_conditions": [
+        "clouds"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 58.5,
+        "level": "uncomfortable",
+        "temp_comfort": 34.9,
+        "humidity_comfort": 94.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.769362",
+    "extreme_weather_flag": false
+}

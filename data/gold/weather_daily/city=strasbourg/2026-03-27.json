@@ -1,0 +1,62 @@
+{
+    "city": "strasbourg",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 6.02,
+            "humidity": 61,
+            "wind_speed": 2.75,
+            "weather": "clouds",
+            "uvi": 2.82
+        }
+    ],
+    "avg_temperature": 6.02,
+    "min_temperature": 6.02,
+    "max_temperature": 6.02,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 3.91,
+    "avg_dew_point": -0.82,
+    "avg_humidity": 61.0,
+    "min_humidity": 61,
+    "max_humidity": 61,
+    "humidity_trend": "stable",
+    "avg_pressure": 1024.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 2.75,
+    "max_wind_speed": 2.75,
+    "max_wind_gust": 3.54,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 75.0,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 2.82,
+    "avg_uvi": 2.82,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clouds",
+    "weather_conditions": [
+        "clouds"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 40.3,
+        "level": "uncomfortable",
+        "temp_comfort": 15.1,
+        "humidity_comfort": 78.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.763834",
+    "extreme_weather_flag": false
+}

@@ -1,0 +1,26 @@
+{
+    "city": "lyon",
+    "date": "2026-03-27",
+    "avg_temperature": 6.08,
+    "temp_trend": "stable",
+    "max_wind_speed": 7.46,
+    "precipitation_detected": false,
+    "max_uvi": 3.44,
+    "avg_aqi": 41.0,
+    "aqi_trend": "stable",
+    "max_alert_level": "good",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "pm25",
+    "weather_comfort_score": 42.8,
+    "air_quality_score": 91.8,
+    "outdoor_activity_score": 72.2,
+    "weather_hours": [
+        10
+    ],
+    "air_quality_hours": [
+        10
+    ],
+    "outdoor_activity_recommendation": "good",
+    "health_advisory": "No restrictions",
+    "aggregated_at": "2026-03-27T11:28:42.689228"
+}

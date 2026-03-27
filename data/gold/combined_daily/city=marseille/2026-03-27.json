@@ -1,0 +1,26 @@
+{
+    "city": "marseille",
+    "date": "2026-03-27",
+    "avg_temperature": 10.87,
+    "temp_trend": "stable",
+    "max_wind_speed": 9.27,
+    "precipitation_detected": false,
+    "max_uvi": 3.57,
+    "avg_aqi": 1.0,
+    "aqi_trend": "stable",
+    "max_alert_level": "good",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "no2",
+    "weather_comfort_score": 58.0,
+    "air_quality_score": 99.8,
+    "outdoor_activity_score": 83.1,
+    "weather_hours": [
+        10
+    ],
+    "air_quality_hours": [
+        10
+    ],
+    "outdoor_activity_recommendation": "excellent",
+    "health_advisory": "No restrictions",
+    "aggregated_at": "2026-03-27T11:28:42.690740"
+}

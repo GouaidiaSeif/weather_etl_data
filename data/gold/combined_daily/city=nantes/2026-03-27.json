@@ -1,0 +1,26 @@
+{
+    "city": "nantes",
+    "date": "2026-03-27",
+    "avg_temperature": 10.06,
+    "temp_trend": "stable",
+    "max_wind_speed": 1.97,
+    "precipitation_detected": false,
+    "max_uvi": 2.09,
+    "avg_aqi": 30.0,
+    "aqi_trend": "stable",
+    "max_alert_level": "good",
+    "unhealthy_hours_count": 0,
+    "primary_pollutant": "o3",
+    "weather_comfort_score": 51.6,
+    "air_quality_score": 94.0,
+    "outdoor_activity_score": 77.0,
+    "weather_hours": [
+        10
+    ],
+    "air_quality_hours": [
+        10
+    ],
+    "outdoor_activity_recommendation": "good",
+    "health_advisory": "No restrictions",
+    "aggregated_at": "2026-03-27T11:28:42.709960"
+}

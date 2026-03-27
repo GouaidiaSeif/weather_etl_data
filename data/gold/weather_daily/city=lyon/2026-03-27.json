@@ -1,0 +1,62 @@
+{
+    "city": "lyon",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 6.08,
+            "humidity": 58,
+            "wind_speed": 7.46,
+            "weather": "clouds",
+            "uvi": 3.44
+        }
+    ],
+    "avg_temperature": 6.08,
+    "min_temperature": 6.08,
+    "max_temperature": 6.08,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 1.75,
+    "avg_dew_point": -1.37,
+    "avg_humidity": 58.0,
+    "min_humidity": 58,
+    "max_humidity": 58,
+    "humidity_trend": "stable",
+    "avg_pressure": 1021.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 7.46,
+    "max_wind_speed": 7.46,
+    "max_wind_gust": 11.98,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": 20.0,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 3.44,
+    "avg_uvi": 3.44,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clouds",
+    "weather_conditions": [
+        "clouds"
+    ],
+    "max_severity": "moderate",
+    "comfort_index": {
+        "score": 42.8,
+        "level": "uncomfortable",
+        "temp_comfort": 15.4,
+        "humidity_comfort": 84.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.700547",
+    "extreme_weather_flag": false
+}

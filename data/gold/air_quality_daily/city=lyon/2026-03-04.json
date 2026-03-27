@@ -93,8 +93,8 @@
     "aqi_trend": "rising",
     "max_alert_level": "moderate",
     "alert_levels_distribution": {
-        "moderate": 1,
-        "good": 7
+        "good": 7,
+        "moderate": 1
     },
     "unhealthy_hours_count": 0,
     "unhealthy_hours_percent": 0.0,
@@ -161,6 +161,6 @@
         }
     ],
     "data_quality_score": 0.25,
-    "aggregated_at": "2026-03-04T08:51:55.463766",
+    "aggregated_at": "2026-03-27T11:28:42.111996",
     "significant_pollution_flag": false
 }

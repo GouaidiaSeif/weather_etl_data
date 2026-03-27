@@ -1,0 +1,95 @@
+{
+  "timestamp_utc": "2026-03-27T11:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "nice",
+  "station_id": 6886,
+  "station_name": "Nice Arson, PACA, France",
+  "station_coordinates": {
+    "lat": 43.702075,
+    "lon": 7.286256
+  },
+  "station_url": "https://aqicn.org/city/france/paca/nice-arson",
+  "aqi": 36,
+  "alert_level": "good",
+  "aqi_category": "good",
+  "dominant_pollutant_api": "o3",
+  "pm25": 6,
+  "pm10": 6,
+  "no2": 4.8,
+  "o3": 35.7,
+  "co": null,
+  "so2": 1.1,
+  "no": null,
+  "nh3": null,
+  "primary_pollutant": "o3",
+  "pm25_to_pm10_ratio": 1.0,
+  "no2_to_o3_ratio": 0.13,
+  "temperature_celsius": 14,
+  "humidity_percent": 33,
+  "pressure_hpa": 1008,
+  "wind_speed_mps": 5.1,
+  "wind_gust_mps": 11.3,
+  "dew_point_celsius": -2,
+  "health_risk": {
+    "score": 7.2,
+    "level": "good",
+    "outdoor_activity": "safe",
+    "sensitive_groups": "safe",
+    "mask_recommended": false
+  },
+  "uvi_forecast_daily": [
+    {
+      "date": "2026-03-27",
+      "avg": 1,
+      "min": 0,
+      "max": 4
+    },
+    {
+      "date": "2026-03-28",
+      "avg": 1,
+      "min": 0,
+      "max": 5
+    },
+    {
+      "date": "2026-03-29",
+      "avg": 0,
+      "min": 0,
+      "max": 4
+    },
+    {
+      "date": "2026-03-30",
+      "avg": 0,
+      "min": 0,
+      "max": 5
+    },
+    {
+      "date": "2026-03-31",
+      "avg": 1,
+      "min": 0,
+      "max": 4
+    },
+    {
+      "date": "2026-04-01",
+      "avg": 0,
+      "min": 0,
+      "max": 0
+    }
+  ],
+  "station_timezone": "+01:00",
+  "attributions": [
+    "L'observatoire de la qualit\u00c3\u00a9 de l'air en R\u00c3\u00a9gion Sud Provence-Alpes-C\u00c3\u00b4te d'Azur",
+    "World Air Quality Index Project"
+  ],
+  "_data_quality": {
+    "completeness_score": 0.62,
+    "available_pollutants": 5,
+    "total_pollutants": 8
+  },
+  "_lineage": {
+    "transformer": "AirQualityTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.362561+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=nice\\year=2026\\month=03\\day=27\\air_quality_10_raw.json"
+  }
+}

@@ -1,0 +1,62 @@
+{
+    "city": "lille",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 8.59,
+            "humidity": 62,
+            "wind_speed": 4.52,
+            "weather": "clear",
+            "uvi": 2.65
+        }
+    ],
+    "avg_temperature": 8.59,
+    "min_temperature": 8.59,
+    "max_temperature": 8.59,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 6.03,
+    "avg_dew_point": 1.73,
+    "avg_humidity": 62.0,
+    "min_humidity": 62,
+    "max_humidity": 62,
+    "humidity_trend": "stable",
+    "avg_pressure": 1023.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 4.52,
+    "max_wind_speed": 4.52,
+    "max_wind_gust": 6.15,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": null,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 2.65,
+    "avg_uvi": 2.65,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clear",
+    "weather_conditions": [
+        "clear"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 47.2,
+        "level": "uncomfortable",
+        "temp_comfort": 28.0,
+        "humidity_comfort": 76.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.694036",
+    "extreme_weather_flag": false
+}

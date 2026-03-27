@@ -1,0 +1,62 @@
+{
+    "city": "montpellier",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 10.26,
+            "humidity": 35,
+            "wind_speed": 9.94,
+            "weather": "clear",
+            "uvi": 4.05
+        }
+    ],
+    "avg_temperature": 10.26,
+    "min_temperature": 10.26,
+    "max_temperature": 10.26,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 8.26,
+    "avg_dew_point": -4.0,
+    "avg_humidity": 35.0,
+    "min_humidity": 35,
+    "max_humidity": 35,
+    "humidity_trend": "stable",
+    "avg_pressure": 1017.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 9.94,
+    "max_wind_speed": 9.94,
+    "max_wind_gust": 14.55,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": null,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 4.05,
+    "avg_uvi": 4.05,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clear",
+    "weather_conditions": [
+        "clear"
+    ],
+    "max_severity": "moderate",
+    "comfort_index": {
+        "score": 49.8,
+        "level": "uncomfortable",
+        "temp_comfort": 36.3,
+        "humidity_comfort": 70.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.716107",
+    "extreme_weather_flag": false
+}

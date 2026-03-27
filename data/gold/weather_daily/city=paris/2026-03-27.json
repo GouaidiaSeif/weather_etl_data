@@ -1,0 +1,62 @@
+{
+    "city": "paris",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 8.38,
+            "humidity": 60,
+            "wind_speed": 1.35,
+            "weather": "clear",
+            "uvi": 2.94
+        }
+    ],
+    "avg_temperature": 8.38,
+    "min_temperature": 8.38,
+    "max_temperature": 8.38,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 7.98,
+    "avg_dew_point": 1.07,
+    "avg_humidity": 60.0,
+    "min_humidity": 60,
+    "max_humidity": 60,
+    "humidity_trend": "stable",
+    "avg_pressure": 1025.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 1.35,
+    "max_wind_speed": 1.35,
+    "max_wind_gust": 1.23,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": null,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 2.94,
+    "avg_uvi": 2.94,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clear",
+    "weather_conditions": [
+        "clear"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 48.1,
+        "level": "uncomfortable",
+        "temp_comfort": 26.9,
+        "humidity_comfort": 80.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.753303",
+    "extreme_weather_flag": false
+}

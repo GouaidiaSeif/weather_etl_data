@@ -1,0 +1,62 @@
+{
+    "city": "bordeaux",
+    "date": "2026-03-27",
+    "records_count": 1,
+    "hours_covered": [
+        10
+    ],
+    "hourly_data": [
+        {
+            "hour": 10,
+            "hour_formatted": "10:00",
+            "temperature": 11.21,
+            "humidity": 43,
+            "wind_speed": 2.48,
+            "weather": "clear",
+            "uvi": 3.66
+        }
+    ],
+    "avg_temperature": 11.21,
+    "min_temperature": 11.21,
+    "max_temperature": 11.21,
+    "temp_range": 0.0,
+    "temp_volatility": null,
+    "temp_trend": "stable",
+    "avg_feels_like": 9.51,
+    "avg_dew_point": -0.79,
+    "avg_humidity": 43.0,
+    "min_humidity": 43,
+    "max_humidity": 43,
+    "humidity_trend": "stable",
+    "avg_pressure": 1026.0,
+    "pressure_trend": "stable",
+    "avg_wind_speed": 2.48,
+    "max_wind_speed": 2.48,
+    "max_wind_gust": 3.39,
+    "wind_gust_present": true,
+    "avg_cloud_coverage": null,
+    "avg_visibility": 10000.0,
+    "min_visibility": 10000,
+    "max_uvi": 3.66,
+    "avg_uvi": 3.66,
+    "uvi_present": true,
+    "uvi_categories": [
+        "moderate"
+    ],
+    "max_precipitation_probability": 0,
+    "precipitation_detected": false,
+    "dominant_weather_condition": "clear",
+    "weather_conditions": [
+        "clear"
+    ],
+    "max_severity": "normal",
+    "comfort_index": {
+        "score": 59.0,
+        "level": "uncomfortable",
+        "temp_comfort": 41.1,
+        "humidity_comfort": 86.0
+    },
+    "data_quality_score": 1.0,
+    "aggregated_at": "2026-03-27T11:28:40.686507",
+    "extreme_weather_flag": false
+}

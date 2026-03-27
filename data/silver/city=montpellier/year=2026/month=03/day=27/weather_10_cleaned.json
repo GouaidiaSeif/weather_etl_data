@@ -1,0 +1,41 @@
+{
+  "timestamp_utc": "2026-03-27T10:00:00+00:00",
+  "hour": 10,
+  "hour_formatted": "10:00",
+  "city": "montpellier",
+  "temperature_celsius": 10.26,
+  "feels_like_celsius": 8.26,
+  "dew_point_celsius": -4,
+  "humidity_percent": 35,
+  "pressure_hpa": 1017,
+  "wind_speed_mps": 9.94,
+  "wind_gust_mps": 14.55,
+  "wind_direction_deg": 347,
+  "wind_direction_cardinal": "NNW",
+  "cloud_coverage_percent": 0,
+  "visibility_m": 10000,
+  "weather_main": "clear",
+  "weather_description": "clear sky",
+  "weather_icon": "01d",
+  "weather_id": 800,
+  "precipitation_probability_percent": 0,
+  "uvi": 4.05,
+  "uvi_category": "moderate",
+  "heat_index_celsius": null,
+  "weather_severity": "moderate",
+  "latitude": 43.6108,
+  "longitude": 3.8767,
+  "timezone": "Europe/Paris",
+  "timezone_offset_seconds": 3600,
+  "_data_quality": {
+    "completeness_score": 1.0,
+    "available_core_fields": 5,
+    "total_core_fields": 5
+  },
+  "_lineage": {
+    "transformer": "WeatherTransformer",
+    "version": "3.0",
+    "transformed_at": "2026-03-27T10:28:39.423903+00:00",
+    "raw_source": "C:\\Users\\Seif\\Desktop\\weather_etl_v2\\data\\raw\\city=montpellier\\year=2026\\month=03\\day=27\\weather_10_raw.json"
+  }
+}
