@@ -12,6 +12,9 @@ v3 IMPROVEMENTS:
 - Hour extraction from _storage.hour_timestamp
 - Comprehensive field coverage
 - MongoDB integration for Silver and Gold layers
+
+v3.1
+- MongoDB integration for gold : add 3 collections for air quality, weather and combined data
 """
 
 from dataclasses import dataclass, field
@@ -334,29 +337,39 @@ class WeatherETLPipeline:
                 ))
             return results
 
+        # Mapping subdir → méthode MongoDB correspondante
+        GOLD_MONGO_INSERTERS = {
+            "weather_daily":     lambda mongo, data, town, date: mongo.insert_gold_weather_daily(data, town, date),
+            "air_quality_daily": lambda mongo, data, town, date: mongo.insert_gold_air_quality_daily(data, town, date),
+            "combined_daily":    lambda mongo, data, town, date: mongo.insert_gold_daily(data, town, date),
+        }
+
         # After gold files are written, insert into MongoDB per town
         for town in self._towns:
             gold_paths = []
             try:
                 # Collect the gold files written by GoldPipeline.run() for this town
-                for subdir in ["weather_daily", "air_quality_daily", "combined_daily"]:
+                for subdir, inserter in GOLD_MONGO_INSERTERS.items():
                     p = self._gold_base / subdir / f"city={town.name.lower()}" / f"{date_str}.json"
-                    if p.exists():
-                        gold_paths.append(p)
-
-                # Read combined file for MongoDB insertion (if it exists)
-                combined_path = (
-                    self._gold_base / "combined_daily"
-                    / f"city={town.name.lower()}" / f"{date_str}.json"
-                )
-                if combined_path.exists():
-                    with open(combined_path) as f:
-                        combined_data = json.load(f)
-                    mongo_id = self._mongodb.insert_gold_daily(combined_data, town.name, date_str)
+                    if not p.exists():
+                        logger.warning(f"  ⚠ {town.name}: No gold file found at {p}")
+                        continue
+                    
+                    gold_paths.append(p)
+                # Read combined file for MongoDB insertion (if it exists) remplace combined_path par gold_paths
+                # combined_path = (
+                #     self._gold_base / subdir / f"city={town.name.lower()}" / f"{date_str}.json"
+                # )  
+                
+                # if combined_path.exists():
+                    with open(p) as f:
+                        data = json.load(f)
+                    mongo_id = inserter(self._mongodb,data, town.name, date_str)
+                    # mongo_id = self._mongodb.insert_gold_daily(combined_data, town.name, date_str)
                     if mongo_id:
-                        logger.info(f"  ✓ {town.name}: Gold MongoDB → {mongo_id}")
-                else:
-                    logger.warning(f"  ⚠ {town.name}: No combined gold file found at {combined_path}")
+                        logger.info(f"  ✓ {town.name}: [{subdir}] Gold MongoDB → {mongo_id}")
+                    else:
+                        logger.warning(f"  ⚠ {town.name}: [{subdir}] MongoDB insert returned None")
 
                 results.append(ETLResult(
                     success=True,

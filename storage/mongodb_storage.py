@@ -26,6 +26,8 @@ class MongoDBStorage:
         - silver_weather: Cleaned weather data
         - silver_air_quality: Cleaned air quality data
         - gold_daily: Aggregated daily analytics
+        - gold_weather_daily : Daily weather analytics
+        - gold_air_quality_daily : Daily air quality analytics
     """
     
     def __init__(self, settings: Optional[Settings] = None):
@@ -81,12 +83,13 @@ class MongoDBStorage:
         if self._settings.mongodb_uri:
             return self._settings.mongodb_uri
         
-        auth_part = ""
-        if self._settings.mongodb_username and self._settings.mongodb_password:
-            auth_part = f"{self._settings.mongodb_username}:{self._settings.mongodb_password}@"
+        # auth_part = ""
+        # if self._settings.mongodb_username and self._settings.mongodb_password:
+        #     auth_part = f"{self._settings.mongodb_username}:{self._settings.mongodb_password}@"
         
-        return f"mongodb://{auth_part}{self._settings.mongodb_host}:{self._settings.mongodb_port}"
-    
+        # return f"mongodb://{auth_part}{self._settings.mongodb_host}:{self._settings.mongodb_port}"
+        return f"mongodb://{self._settings.mongodb_host}:{self._settings.mongodb_port}"
+
     def _create_indexes(self) -> None:
         """Create indexes for efficient querying."""
         if self._db is None:
@@ -101,6 +104,12 @@ class MongoDBStorage:
             
             self._db.gold_daily.create_index([("city", ASCENDING), ("date", ASCENDING)], unique=True)
             self._db.gold_daily.create_index([("etl_timestamp", ASCENDING)])
+            
+            self._db.gold_weather_daily.create_index([("city", ASCENDING), ("date", ASCENDING)], unique=True)
+            self._db.gold_weather_daily.create_index([("etl_timestamp", ASCENDING)])
+            
+            self._db.gold_air_quality_daily.create_index([("city", ASCENDING), ("date", ASCENDING)], unique=True)
+            self._db.gold_air_quality_daily.create_index([("etl_timestamp", ASCENDING)])
             
             logger.debug("MongoDB indexes created successfully")
             
@@ -173,10 +182,13 @@ class MongoDBStorage:
             logger.error(f"Failed to insert silver air quality for {city}: {e}")
             return None
     
-    def insert_gold_daily(self, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
+    # Modified to create 3 collections : gold_weather_daily, gold_air_quality_daily, gold_daily. Add collection argument
+    # insert_gold_daily -> insert_gold
+    def _insert_gold(self,collection_name : str, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
         """Insert aggregated (gold) daily data.
         
         Args:
+            collection_name : Collection name
             data: Aggregated daily analytics
             city: City name
             date: Date string (YYYY-MM-DD)
@@ -197,19 +209,31 @@ class MongoDBStorage:
             }
             
             # Use upsert to avoid duplicates
-            result = self._db.gold_daily.replace_one(
+            result = self._db[collection_name].replace_one(
                 {"city": city.lower(), "date": date},
                 document,
                 upsert=True
             )
             
             doc_id = result.upserted_id or "updated"
-            logger.debug(f"Inserted/Updated gold daily for {city} on {date}: {doc_id}")
+            logger.debug(f"Inserted/Updated {collection_name} for {city} on {date}: {doc_id}")
             return str(doc_id)
             
         except PyMongoError as e:
-            logger.error(f"Failed to insert gold daily for {city}: {e}")
+            logger.error(f"Failed to insert {collection_name} for {city}: {e}")
             return None
+    
+    # Add 3 functions to insert in each gold collections
+    def insert_gold_weather_daily(self, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
+        return self._insert_gold("gold_weather_daily", data, city, date)
+
+    def insert_gold_air_quality_daily(self, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
+        return self._insert_gold("gold_air_quality_daily", data, city, date)
+
+    def insert_gold_daily(self, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
+        return self._insert_gold("gold_daily", data, city, date)
+        
+    
     
     def get_stats(self) -> Dict[str, int]:
         """Get collection statistics.
