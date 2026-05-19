@@ -8,13 +8,13 @@ Both Weather and Air Quality APIs are called hourly to ensure data synchronizati
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from clients.openweather_client import OpenWeatherClient
 from clients.aqicn_client import AQICNClient
 from config.settings import Settings, get_settings
 from config.towns import FRENCH_TOWNS, Town
+from storage.data_store import create_data_store
 from storage.hive_storage import HivePartitionedStorage
 from utils.logger import get_logger
 
@@ -27,15 +27,15 @@ class ETLResult:
     success: bool
     town: str
     api_source: str
-    filepaths: List[Path] = None
+    object_keys: List[str] = None
     error: Optional[str] = None
     timestamp: datetime = None
     
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now(timezone.utc)
-        if self.filepaths is None:
-            self.filepaths = []
+        if self.object_keys is None:
+            self.object_keys = []
 
 
 class WeatherETLPipeline:
@@ -75,7 +75,8 @@ class WeatherETLPipeline:
         self._settings = settings or get_settings()
         self._towns = towns or FRENCH_TOWNS
         
-        self._storage = HivePartitionedStorage(self._settings.data_raw_path)
+        store = create_data_store(self._settings)
+        self._storage = HivePartitionedStorage(store, prefix="raw")
         
         self._weather_client: Optional[OpenWeatherClient] = None
         self._air_quality_client: Optional[AQICNClient] = None
@@ -150,19 +151,19 @@ class WeatherETLPipeline:
         
         if weather_data:
             try:
-                filepaths = self._storage.save_weather_hourly_records(
+                object_keys = self._storage.save_weather_hourly_records(
                     api_response=weather_data,
                     city_name=town.name,
                     target_hour=reference_hour,
                     hours_back=hours_back
                 )
                 
-                if filepaths:
+                if object_keys:
                     return ETLResult(
                         success=True,
                         town=town.name,
                         api_source="openweather",
-                        filepaths=filepaths,
+                        object_keys=object_keys,
                         timestamp=timestamp
                     )
                 else:
@@ -209,7 +210,7 @@ class WeatherETLPipeline:
         if air_quality_data:
             try:
                 # Use the reference hour to ensure filename matches weather data
-                filepath = self._storage.save_air_quality_data(
+                object_key = self._storage.save_air_quality_data(
                     api_response=air_quality_data,
                     city_name=town.name,
                     target_hour=reference_hour
@@ -219,7 +220,7 @@ class WeatherETLPipeline:
                     success=True,
                     town=town.name,
                     api_source="aqicn",
-                    filepaths=[filepath],
+                    object_keys=[object_key],
                     timestamp=timestamp
                 )
             except Exception as e:
@@ -289,7 +290,7 @@ class WeatherETLPipeline:
             all_results[town.name] = results
             
             success_count = sum(1 for r in results if r.success)
-            total_files = sum(len(r.filepaths) for r in results if r.filepaths)
+            total_files = sum(len(r.object_keys) for r in results if r.object_keys)
             logger.info(
                 f"Completed {town.name}: {success_count}/{len(results)} operations, "
                 f"{total_files} files saved"
@@ -298,10 +299,10 @@ class WeatherETLPipeline:
         total_ops = sum(len(r) for r in all_results.values())
         total_success = sum(sum(1 for r in results if r.success) for results in all_results.values())
         total_files = sum(
-            len(r.filepaths) 
-            for results in all_results.values() 
-            for r in results 
-            if r.filepaths
+            len(r.object_keys)
+            for results in all_results.values()
+            for r in results
+            if r.object_keys
         )
         logger.info(
             f"Hourly ETL completed: {total_success}/{total_ops} operations, "
@@ -322,8 +323,8 @@ class WeatherETLPipeline:
                 total_ops += 1
                 if result.success:
                     total_success += 1
-                if result.filepaths:
-                    total_files += len(result.filepaths)
+                if result.object_keys:
+                    total_files += len(result.object_keys)
                 
                 if result.api_source not in api_stats:
                     api_stats[result.api_source] = {"success": 0, "failed": 0, "files": 0}
@@ -333,8 +334,8 @@ class WeatherETLPipeline:
                 else:
                     api_stats[result.api_source]["failed"] += 1
                 
-                if result.filepaths:
-                    api_stats[result.api_source]["files"] += len(result.filepaths)
+                if result.object_keys:
+                    api_stats[result.api_source]["files"] += len(result.object_keys)
         
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),

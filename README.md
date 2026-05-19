@@ -1,279 +1,315 @@
-# Weather ETL Pipeline
+# Pipeline ETL météo & qualité de l'air
 
-## Project Structure
+Pipeline ETL horaire qui collecte les données météorologiques (**OpenWeatherMap**) et de qualité de l'air (**AQICN**) pour les **10 plus grandes villes de France**, les stocke selon une architecture **medallion** (Bronze / Silver / Gold) et alimente un module **Machine Learning** pour la prédiction et la détection d'anomalies sur l'indice AQI.
+
+## Vue d'ensemble
+
+```mermaid
+flowchart LR
+  subgraph sources [Sources]
+    OW[OpenWeatherMap]
+    AQ[AQICN]
+  end
+
+  subgraph etl [ETL horaire]
+    EX[Extraction]
+    TR[Transformation]
+    AG[Agrégation journalière]
+  end
+
+  subgraph stockage [Stockage]
+    BR[(Bronze — MinIO / disque local)]
+    SI[(Silver — MongoDB)]
+    GO[(Gold — MongoDB)]
+  end
+
+  subgraph ml [Machine Learning]
+    NB[Jupyter Lab]
+    TRN[Entraînement AQI]
+    PRD[Prédiction & anomalies]
+  end
+
+  OW --> EX
+  AQ --> EX
+  EX --> BR
+  EX --> TR --> SI
+  SI --> AG --> GO
+  GO --> TRN
+  GO --> PRD
+  SI --> NB
+  GO --> NB
+```
+
+| Couche | Contenu | Backend par défaut (Docker) |
+|--------|---------|-----------------------------|
+| **Bronze** | Réponses brutes des API, partitionnées type Hive | MinIO (`raw/…`) |
+| **Silver** | Données nettoyées et standardisées | MongoDB (`silver_weather`, `silver_air_quality`) |
+| **Gold** | Agrégats journaliers par ville | MongoDB (`gold_weather_daily`, `gold_air_quality_daily`, `gold_daily`) |
+
+Le planificateur (`scheduler.py`) exécute le pipeline complet à **:05 de chaque heure** (fuseau `Europe/Paris`), avec un premier lancement au démarrage.
+
+## Structure du projet
 
 ```
-weather_etl/
+weather_etl_v2/
 ├── config/
-│   ├── __init__.py
-│   ├── settings.py          # Configuration management
-│   └── towns.py             # Top 10 French towns with coordinates
+│   ├── settings.py              # Configuration (.env)
+│   └── towns.py                 # 10 villes françaises + coordonnées
 ├── clients/
-│   ├── __init__.py
-│   ├── base_client.py       # Abstract base for API clients
 │   ├── openweather_client.py
 │   └── aqicn_client.py
-├── storage/
-│   ├── __init__.py
-│   └── hive_storage.py      # Hive-style partitioned storage
 ├── etl/
-│   ├── __init__.py
-│   └── pipeline.py          # Main ETL orchestrator
-├── utils/
-│   ├── __init__.py
-│   ├── logger.py            # Logging configuration
-│   └── retry.py             # Retry decorator
-├── data/
-│   ├── raw/                 # Raw API responses (auto-created)
-│   └── processed/           # Processed data (auto-created)
-├── scheduler.py             # APScheduler (hourly for both APIs)
-├── fetch_data.py            # CLI script for on-demand execution
+│   └── pipeline.py              # ETL Bronze uniquement (legacy / fetch_data)
+├── transformations/
+│   ├── pipline_final.py         # Pipeline complet Bronze → Silver → Gold
+│   ├── improved_weather_transformer.py
+│   ├── improved_air_quality_transformer.py
+│   └── improved_gold_pipeline.py
+├── storage/
+│   ├── data_store.py            # Abstraction local / MinIO
+│   ├── hive_storage.py          # Partitionnement Hive
+│   └── mongodb_storage.py       # Couches Silver & Gold
+├── MachineLearning/
+│   ├── data_pipeline.py         # Jeu de données Gold pour le ML
+│   ├── train_aqi.py             # Entraînement du modèle AQI
+│   ├── predict.py               # Prédiction AQI
+│   ├── anomaly_detection.py     # Détection d'anomalies
+│   ├── mongo_loader.py
+│   └── notebooks/               # Notebooks Jupyter
+├── scripts/
+│   └── backfill_mongo_from_minio.py  # Rejouer Silver/Gold depuis le Bronze
+├── docker/
+│   ├── Dockerfile.jupyter
+│   ├── entrypoint.sh
+│   └── mongo-init.js
+├── utils/                       # Logger, retry, fuseau horaire, déduplication
+├── scheduler.py                 # Planificateur APScheduler (point d'entrée prod)
+├── fetch_data.py                # CLI extraction Bronze (rapide)
+├── test_setup.py                # Vérification de l'installation
+├── docker-compose.yml
+├── Dockerfile
 ├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
+├── requirements-ml.txt
+└── .env.example
 ```
 
-## Data Storage Structure
+## Prérequis
 
-Raw data is stored in Hive-style partitions:
-
-```
-data/raw/
-├── city=paris/
-│   └── year=2026/
-│       └── month=02/
-│           └── day=08/
-│               ├── weather_13_raw.json       (1 PM weather)
-│               ├── weather_14_raw.json       (2 PM weather)
-│               ├── weather_15_raw.json       (3 PM weather)
-│               ├── air_quality_13_raw.json   (1 PM air quality)
-│               ├── air_quality_14_raw.json   (2 PM air quality)
-│               └── air_quality_15_raw.json   (3 PM air quality)
-├── city=lyon/
-│   └── ...
-└── city=marseille/
-    └── ...
-```
-
-**File naming convention:**
-- Weather data: `weather_{HH}_raw.json` (e.g., `weather_13_raw.json` for 1 PM)
-- Air quality data: `air_quality_{HH}_raw.json` (e.g., `air_quality_13_raw.json` for 1 PM)
-
-**Note:** The hour is extracted from each API's response timestamp to ensure synchronization. If weather returns hour 15 and air quality returns hour 14, they will be saved to different files (`weather_15_raw.json` and `air_quality_14_raw.json`).
+- **Python 3.12+**
+- Clés API :
+  - [OpenWeatherMap](https://openweathermap.org/api)
+  - [AQICN](https://aqicn.org/data-platform/token/)
+- Pour l'exécution conteneurisée : **Docker** et **Docker Compose**
+- Optionnel en local : **MinIO**, **MongoDB** (ou via Docker Compose)
 
 ## Installation
 
-1. Clone the repository:
+### Option A — Docker Compose (recommandé)
+
+1. Cloner le dépôt et se placer à la racine :
+
 ```bash
-git clone https://github.com/A5apFloki/weather_etl.git
-cd weather_etl
+git clone <url-du-depot> weather_etl_v2
+cd weather_etl_v2
 ```
 
-2. Create a virtual environment:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+2. Configurer l'environnement :
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Set up environment variables:
 ```bash
 cp .env.example .env
-# Edit .env with your API keys
+# Renseigner OPENWEATHER_API_KEY et AQICN_API_KEY dans .env
 ```
+
+3. Démarrer la stack :
+
+```bash
+docker compose up -d --build
+```
+
+Services exposés :
+
+| Service | URL / port | Rôle |
+|---------|------------|------|
+| **etl** | — | Planificateur ETL (logs dans le volume `etl_logs`) |
+| **MinIO** | http://localhost:9000 (API), :9001 (console) | Stockage Bronze (`minioadmin` / `minioadmin`) |
+| **MongoDB** | `localhost:27018` | Silver & Gold (`weather_user` / `weather_pass`) |
+| **Jupyter Lab** | http://localhost:8888 | Notebooks ML sous `MachineLearning/` |
+
+> Sur Windows, le port hôte **27018** évite le conflit avec un `mongod` local sur `27017`.
+
+4. Vérifier les logs ETL :
+
+```bash
+docker compose logs -f etl
+```
+
+### Option B — Exécution locale
+
+```bash
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# Linux / macOS
+source venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env
+# Éditer .env (clés API, STORAGE_BACKEND=local ou minio, MongoDB, etc.)
+```
+
+Pour le module ML et Jupyter en local :
+
+```bash
+pip install -r requirements-ml.txt
+```
+
+Lancer MinIO et MongoDB séparément, ou pointer `STORAGE_BACKEND=local` et ignorer MongoDB (Silver/Gold désactivés si la connexion échoue).
 
 ## Configuration
 
-Create a `.env` file with your API keys:
+Variables principales (voir `.env.example` pour la liste complète) :
 
-```bash
-OPENWEATHER_API_KEY=your_openweather_api_key
-AQICN_API_KEY=your_aqicn_api_token
-```
+| Variable | Obligatoire | Défaut | Description |
+|----------|:-----------:|--------|-------------|
+| `OPENWEATHER_API_KEY` | Oui | — | Clé API OpenWeatherMap |
+| `AQICN_API_KEY` | Oui | — | Jeton AQICN |
+| `STORAGE_BACKEND` | Non | `minio` | `local` ou `minio` |
+| `DATA_BASE_PATH` | Non | `./data` | Racine des données en mode `local` |
+| `MINIO_ENDPOINT` | Si MinIO | `localhost:9000` | Hôte:port MinIO |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | Si MinIO | `minioadmin` | Identifiants MinIO |
+| `MINIO_BUCKET` | Non | `weather-etl` | Nom du bucket |
+| `MONGODB_HOST` | Non | `localhost` | Hôte MongoDB |
+| `MONGODB_PORT` | Non | `27018` (hôte Docker) | Port MongoDB |
+| `MONGODB_DATABASE` | Non | `weather_etl` | Base de données |
+| `MONGODB_USERNAME` / `MONGODB_PASSWORD` | Non | `weather_user` / `weather_pass` | Utilisateur applicatif |
+| `LOCAL_TIMEZONE` | Non | `Europe/Paris` | Alignement horaire des villes |
+| `LOG_LEVEL` | Non | `INFO` | Niveau de log |
+| `REQUEST_TIMEOUT` | Non | `30` | Timeout HTTP (secondes) |
+| `MAX_RETRIES` | Non | `3` | Tentatives max sur les appels API |
 
-### Getting API Keys
+## Utilisation
 
-- **OpenWeatherMap**: Sign up at https://openweathermap.org/api
-- **AQICN**: Get a token at https://aqicn.org/data-platform/token/
+### Planificateur (production)
 
-## Usage
+Pipeline complet : extraction → Bronze → Silver → Gold.
 
-### Run Scheduler (Recommended)
-
-Start the scheduler to run automatically every hour:
 ```bash
 python scheduler.py
 ```
 
-The scheduler will:
-1. Run an initial ETL job immediately
-2. Schedule ETL job to run every hour (both weather and air quality)
-3. Log all activities
+Sous Docker, le service `etl` exécute déjà cette commande.
 
-### Run On-Demand
+### Exécution ponctuelle du pipeline complet
 
-Fetch both weather and air quality data for all towns:
 ```bash
-python fetch_data.py
+python transformations/pipline_final.py
 ```
 
-Fetch weather data only:
+### Extraction Bronze uniquement (CLI)
+
+Utile pour tester les API sans passer par MongoDB :
+
 ```bash
-python fetch_data.py --weather
+python fetch_data.py                      # Météo + qualité de l'air, toutes les villes
+python fetch_data.py --weather            # Météo seulement
+python fetch_data.py --air-quality        # Qualité de l'air seulement
+python fetch_data.py --town paris         # Une ville
+python fetch_data.py --hours 3            # 3 dernières heures de météo
+python fetch_data.py --list-towns         # Lister les villes
 ```
 
-Fetch air quality data only:
+> `fetch_data.py` s'appuie sur `etl/pipeline.py` (couche Bronze). Pour Silver et Gold, utiliser le planificateur ou `pipline_final.py`.
+
+### Rattrapage MongoDB depuis le Bronze
+
+Si MinIO contient déjà les fichiers `raw` mais que MongoDB est vide ou incomplet :
+
 ```bash
-python fetch_data.py --air-quality
+python scripts/backfill_mongo_from_minio.py
 ```
 
-Fetch data for a specific town:
+### Vérifier l'installation
+
 ```bash
-python fetch_data.py --town paris
+python test_setup.py
 ```
 
-Extract past 3 hours of weather data:
-```bash
-python fetch_data.py --hours 3
-```
-
-List available towns:
-```bash
-python fetch_data.py --list-towns
-```
-
-### Use as a Library
+### Utilisation en bibliothèque
 
 ```python
-from etl.pipeline import run_hourly_etl_job
-
-# Run hourly ETL (both weather and air quality)
-summary = run_hourly_etl_job(hours_back=1)
-
-# Run for specific towns
+from transformations.pipline_final import run_hourly_etl_job
 from config.towns import FRENCH_TOWNS
-paris = [t for t in FRENCH_TOWNS if t.name == "paris"]
-summary = run_hourly_etl_job(towns=paris, hours_back=1)
 
-print(f"Saved {summary['total_files_saved']} files")
-print(f"Success rate: {summary['success_rate']:.1%}")
+summary = run_hourly_etl_job(hours_back=1)
+print(summary["success_rate"], summary.get("mongodb_stats"))
 ```
 
-### Query Stored Data
+## Stockage des données
 
-```python
-from storage.hive_storage import HivePartitionedStorage
-from pathlib import Path
+### Bronze — partitionnement Hive
 
-storage = HivePartitionedStorage(Path("data/raw"))
-
-# List all weather files for Paris
-weather_files = storage.list_files(city_name="paris", api_source="openweather")
-
-# List all air quality files for Paris
-aq_files = storage.list_files(city_name="paris", api_source="aqicn")
-
-# Load specific hour weather data
-data = storage.load(
-    city_name="paris",
-    year="2026",
-    month="02",
-    day="08",
-    hour="15",
-    api_source="openweather"
-)
-
-# Load specific hour air quality data
-data = storage.load(
-    city_name="paris",
-    year="2026",
-    month="02",
-    day="08",
-    hour="15",
-    api_source="aqicn"
-)
+```
+raw/
+└── city=paris/
+    └── year=2026/
+        └── month=03/
+            └── day=04/
+                ├── weather_14_raw.json
+                └── air_quality_14_raw.json
 ```
 
-## API Response Format
+Convention de nommage :
 
-### Weather Data (`weather_{HH}_raw.json`)
+- Météo : `weather_{HH}_raw.json`
+- Qualité de l'air : `air_quality_{HH}_raw.json`
 
-```json
-{
-  "hourly": {
-    "dt": 1739014800,
-    "temp": 8.5,
-    "feels_like": 6.2,
-    "pressure": 1024,
-    "humidity": 76,
-    "uvi": 1.2,
-    "clouds": 40,
-    "visibility": 10000,
-    "wind_speed": 3.5,
-    "wind_deg": 250,
-    "pop": 0.1,
-    "weather": [...]
-  },
-  "lat": 48.8566,
-  "lon": 2.3522,
-  "timezone": "Europe/Paris",
-  "_metadata": {...},
-  "_storage": {
-    "saved_at": "2026-02-08T15:30:00",
-    "filepath": "...",
-    "api_source": "openweather",
-    "city": "paris",
-    "hour_timestamp": "2026-02-08T15:00:00",
-    "data_type": "hourly"
-  }
-}
+L'heure (`HH`) est dérivée de l'horodatage de la réponse API, alignée sur `Europe/Paris`.
+
+### Silver & Gold — collections MongoDB
+
+| Collection | Description |
+|------------|-------------|
+| `silver_weather` | Météo nettoyée (par ville / heure) |
+| `silver_air_quality` | Qualité de l'air nettoyée |
+| `gold_weather_daily` | Statistiques météo journalières |
+| `gold_air_quality_daily` | Statistiques AQI journalières |
+| `gold_daily` | Vue combinée météo + air par jour |
+
+Connexion depuis **MongoDB Compass** (stack Docker) :
+
+```
+mongodb://weather_user:weather_pass@localhost:27018/weather_etl?authSource=weather_etl
 ```
 
-### Air Quality Data (`air_quality_{HH}_raw.json`)
+## Machine Learning
 
-```json
-{
-  "status": "ok",
-  "data": {
-    "aqi": 45,
-    "idx": 1234,
-    "time": {"s": "2026-02-08 15:00:00", "tz": "+01:00"},
-    "city": {...},
-    "iaqi": {...}
-  },
-  "_metadata": {...},
-  "_storage": {
-    "saved_at": "2026-02-08T15:30:00",
-    "filepath": "...",
-    "api_source": "aqicn",
-    "city": "paris",
-    "hour_timestamp": "2026-02-08T15:00:00",
-    "data_type": "hourly"
-  }
-}
+Le dossier `MachineLearning/` construit un jeu d'entraînement à partir des données Gold (MongoDB ou CSV exporté), entraîne un **Random Forest** pour prédire l'AQI et détecte les écarts par rapport au modèle.
+
+```bash
+# Construire / mettre à jour le dataset Gold (CSV)
+python -m MachineLearning.data_pipeline
+
+# Entraîner le modèle (nécessite suffisamment de lignes Gold)
+python -m MachineLearning.train_aqi
+
+# Prédire un AQI à partir de features météo
+python -m MachineLearning.predict
+
+# Détecter les anomalies AQI
+python -m MachineLearning.anomaly_detection
 ```
 
-## Environment Variables
+Artefacts générés :
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `OPENWEATHER_API_KEY` | Yes | - | OpenWeatherMap API key |
-| `AQICN_API_KEY` | Yes | - | AQICN API token |
-| `DATA_RAW_PATH` | No | `./data/raw` | Path for raw data |
-| `DATA_PROCESSED_PATH` | No | `./data/processed` | Path for processed data |
-| `LOG_LEVEL` | No | `INFO` | Logging level |
-| `REQUEST_TIMEOUT` | No | `30` | HTTP timeout in seconds |
-| `MAX_RETRIES` | No | `3` | Max retries for API calls |
+- `MachineLearning/data/gold/dataset_gold.csv` — dataset d'entraînement
+- `MachineLearning/models/aqi_model.pkl` — modèle sauvegardé
 
-## Cities Covered
+Workflow interactif : notebook `MachineLearning/notebooks/01_mongo_ml_workflow.ipynb` via Jupyter (`docker compose up jupyter` ou installation locale de `requirements-ml.txt`).
 
-| City | Latitude | Longitude |
-|------|----------|-----------|
+## Villes couvertes
+
+| Ville | Latitude | Longitude |
+|-------|----------|-----------|
 | Paris | 48.8566 | 2.3522 |
 | Marseille | 43.2965 | 5.3698 |
 | Lyon | 45.7640 | 4.8357 |
@@ -285,23 +321,14 @@ data = storage.load(
 | Bordeaux | 44.8378 | -0.5792 |
 | Lille | 50.6292 | 3.0573 |
 
-## Scheduling Details
+## Planification
 
-### Hourly ETL (Every Hour)
-- Runs every hour
-- Fetches both weather and air quality data
-- Weather: Extracts past 1 hour of data by default
-- Air Quality: Extracts current hour from API response
-- Saves each with hour extracted from API response timestamp
-- Example: At 15:00 run, saves `weather_15_raw.json` and `air_quality_15_raw.json`
+- **Fréquence** : toutes les heures à **minute 5** (`Europe/Paris`)
+- **Comportement** : un job au démarrage, puis exécution cron ; une seule instance à la fois (`max_instances=1`)
+- **Flux** : extraction de toutes les villes → écriture Bronze → transformation Silver → agrégation Gold
 
-**Note on Hour Synchronization:**
-The hour for each file is extracted from the API response timestamp:
-- OpenWeather: Uses the `dt` field (Unix timestamp)
-- AQICN: Uses the `data.time.s` field (ISO timestamp)
+Les logs du planificateur sont écrits dans `data/logs/` (ou le volume Docker `etl_logs`).
 
-If the APIs return different hours (e.g., weather=15, air_quality=14), they will be saved to separate files. This ensures data accuracy and prevents mixing data from different hours.
+## Licence
 
-## License
-
-MIT License
+MIT

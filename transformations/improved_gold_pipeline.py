@@ -8,14 +8,17 @@ FIXED v3:
 - Handles all new fields from transformers
 """
 
-import json
 import statistics
 import re
-from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
+
 from utils.logger import get_logger
+from utils.dedupe import dedupe_records_by_hour
+
+if TYPE_CHECKING:
+    from storage.mongodb_storage import MongoDBStorage
 
 logger = get_logger(__name__)
 
@@ -23,9 +26,13 @@ logger = get_logger(__name__)
 class GoldPipeline:
     """Gold layer aggregation with comprehensive KPIs."""
 
-    def __init__(self, silver_base_path: Path, gold_base_path: Path):
-        self.silver_base_path = Path(silver_base_path)
-        self.gold_base_path = Path(gold_base_path)
+    def __init__(
+        self,
+        mongodb: "MongoDBStorage",
+        aggregation_date_paris: Optional[str] = None,
+    ):
+        self._mongodb = mongodb
+        self._aggregation_date_paris = aggregation_date_paris
 
     @staticmethod
     def _sanitize_city_name(city: str) -> str:
@@ -107,25 +114,23 @@ class GoldPipeline:
         
         weather_data = defaultdict(list)
         
-        # Collect all weather records by (city, date)
-        for file in self.silver_base_path.rglob("weather_*_cleaned.json"):
+        for record in self._mongodb.iter_silver_weather_records(self._aggregation_date_paris):
             try:
-                with open(file) as f:
-                    record = json.load(f)
-                    city = record.get("city", "unknown")
-                    timestamp = record.get("timestamp_utc", "")
-                    if timestamp:
-                        date = timestamp[:10]
-                        weather_data[(city, date)].append(record)
+                city = record.get("city", "unknown")
+                date = record.get("date_paris") or (
+                    record.get("timestamp_utc", "")[:10] if record.get("timestamp_utc") else None
+                )
+                if date:
+                    weather_data[(city, date)].append(record)
             except Exception as e:
-                logger.warning(f"Failed to process {file}: {e}")
+                logger.warning(f"Failed to process silver weather record: {e}")
         
         logger.info(f"Found {len(weather_data)} city/date combinations for weather aggregation")
         
         for (city, date), records in weather_data.items():
             try:
-                # Sort by hour
-                records.sort(key=lambda r: r.get("hour", 0))
+                records = dedupe_records_by_hour(records)
+                records.sort(key=lambda r: r.get("hour_paris", r.get("hour", 0)))
                 
                 # Extract value lists
                 temps = [r["temperature_celsius"] for r in records if r.get("temperature_celsius") is not None]
@@ -256,24 +261,23 @@ class GoldPipeline:
         
         air_data = defaultdict(list)
         
-        for file in self.silver_base_path.rglob("air_quality_*_cleaned.json"):
+        for record in self._mongodb.iter_silver_air_quality_records(self._aggregation_date_paris):
             try:
-                with open(file) as f:
-                    record = json.load(f)
-                    city = record.get("city", "unknown")
-                    timestamp = record.get("timestamp_utc", "")
-                    if timestamp:
-                        date = timestamp[:10]
-                        air_data[(city, date)].append(record)
+                city = record.get("city", "unknown")
+                date = record.get("date_paris") or (
+                    record.get("timestamp_utc", "")[:10] if record.get("timestamp_utc") else None
+                )
+                if date:
+                    air_data[(city, date)].append(record)
             except Exception as e:
-                logger.warning(f"Failed to process {file}: {e}")
+                logger.warning(f"Failed to process silver air quality record: {e}")
         
         logger.info(f"Found {len(air_data)} city/date combinations for air quality aggregation")
         
         for (city, date), records in air_data.items():
             try:
-                # Sort by hour
-                records.sort(key=lambda r: r.get("hour", 0))
+                records = dedupe_records_by_hour(records)
+                records.sort(key=lambda r: r.get("hour_paris", r.get("hour", 0)))
                 
                 # Extract value lists
                 aqis = [r["aqi"] for r in records if r.get("aqi") is not None]
@@ -403,27 +407,8 @@ class GoldPipeline:
         """Create combined weather + air quality analytics."""
         logger.info("Starting combined daily aggregation...")
         
-        # Load weather gold data
-        weather_gold = {}
-        for file in self.gold_base_path.rglob("weather_daily/**/*.json"):
-            try:
-                with open(file) as f:
-                    record = json.load(f)
-                    key = (record["city"], record["date"])
-                    weather_gold[key] = record
-            except Exception as e:
-                logger.warning(f"Failed to load weather gold {file}: {e}")
-        
-        # Load air quality gold data
-        air_gold = {}
-        for file in self.gold_base_path.rglob("air_quality_daily/**/*.json"):
-            try:
-                with open(file) as f:
-                    record = json.load(f)
-                    key = (record["city"], record["date"])
-                    air_gold[key] = record
-            except Exception as e:
-                logger.warning(f"Failed to load air gold {file}: {e}")
+        weather_gold = self._mongodb.iter_gold_weather_analytics()
+        air_gold = self._mongodb.iter_gold_air_quality_analytics()
         
         # Find common city/date combinations
         common_keys = set(weather_gold.keys()) & set(air_gold.keys())
@@ -500,22 +485,18 @@ class GoldPipeline:
         logger.info("Combined daily aggregation completed")
 
     def _save_gold_record(self, dataset_type: str, city: str, date: str, record: Dict):
-        """Save aggregated GOLD record."""
-        sanitized_city = self._sanitize_city_name(city)
-        
-        output_path = (
-            self.gold_base_path
-            / dataset_type
-            / f"city={sanitized_city}"
-        )
-        
-        output_path.mkdir(parents=True, exist_ok=True)
-        filepath = output_path / f"{date}.json"
-        
-        with open(filepath, "w") as f:
-            json.dump(record, f, indent=4)
-        
-        logger.info(f"Saved {dataset_type} gold record: {filepath}")
+        """Save aggregated GOLD record to MongoDB."""
+        inserters = {
+            "weather_daily": self._mongodb.insert_gold_weather_daily,
+            "air_quality_daily": self._mongodb.insert_gold_air_quality_daily,
+            "combined_daily": self._mongodb.insert_gold_daily,
+        }
+        inserter = inserters.get(dataset_type)
+        if not inserter:
+            logger.error(f"Unknown gold dataset type: {dataset_type}")
+            return
+        doc_id = inserter(record, city, date)
+        logger.info(f"Saved {dataset_type} gold record to MongoDB for {city}/{date}: {doc_id}")
 
     def run(self):
         """Run all gold aggregations."""

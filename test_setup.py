@@ -135,7 +135,10 @@ def test_storage():
     
     try:
         settings = get_settings()
-        storage = HivePartitionedStorage(settings.data_raw_path)
+        from storage.data_store import create_raw_store
+
+        store = create_raw_store(settings)
+        storage = HivePartitionedStorage(store, prefix="raw")
         
         # Test saving weather data (using the unified save_hourly_data method)
         from datetime import datetime, timezone
@@ -156,11 +159,23 @@ def test_storage():
         )
         logger.info(f"  Saved test air quality data to {filepath}")
         
-        # Clean up
-        import shutil
-        test_partition = settings.data_raw_path / "city=test_city"
-        if test_partition.exists():
-            shutil.rmtree(test_partition)
+        # Clean up test data
+        if settings.storage_backend == "minio":
+            from minio.deleteobjects import DeleteObject
+            from storage.data_store import MinioDataStore
+
+            if isinstance(store, MinioDataStore):
+                keys = storage.list_files(city_name="test_city")
+                if keys:
+                    store._client.remove_objects(
+                        store._bucket,
+                        [DeleteObject(k) for k in keys],
+                    )
+        else:
+            import shutil
+            test_partition = settings.data_raw_path / "city=test_city"
+            if test_partition.exists():
+                shutil.rmtree(test_partition)
         
         logger.info("  Storage backend: OK")
         return True

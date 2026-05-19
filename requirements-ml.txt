@@ -1,0 +1,10 @@
+# Machine learning + Jupyter (used by docker/Dockerfile.jupyter)
+-r requirements.txt
+
+pandas>=2.1.0
+scikit-learn>=1.4.0
+joblib>=1.3.0
+jupyterlab>=4.2.0
+ipykernel>=6.29.0
+matplotlib>=3.8.0
+seaborn>=0.13.0

@@ -11,6 +11,13 @@ FIXED v3:
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from utils.logger import get_logger
+from utils.timezone_utils import (
+    PARIS_TZ,
+    format_hour_paris,
+    parse_storage_timestamp,
+    paris_date_str,
+    paris_hour,
+)
 
 logger = get_logger(__name__)
 
@@ -46,18 +53,19 @@ class WeatherTransformer:
         return value
 
     @staticmethod
-    def _extract_hour(raw_record: Dict[str, Any]) -> Optional[int]:
-        """Extract hour from _storage.hour_timestamp."""
+    def _extract_paris_time(raw_record: Dict[str, Any], hourly: Dict[str, Any]) -> datetime:
+        """Resolve event time in Europe/Paris from storage metadata or hourly.dt."""
         storage = raw_record.get("_storage", {})
-        hour_ts = storage.get("hour_timestamp", "")
-        if hour_ts:
-            try:
-                # Parse ISO format timestamp
-                dt = datetime.fromisoformat(hour_ts.replace("Z", "+00:00"))
-                return dt.hour
-            except Exception as e:
-                logger.warning(f"Failed to parse hour_timestamp: {e}")
-        return None
+        for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
+            dt = parse_storage_timestamp(storage.get(key, ""))
+            if dt is not None:
+                return dt.astimezone(PARIS_TZ)
+
+        dt_value = hourly.get("dt")
+        if dt_value:
+            return datetime.fromtimestamp(int(dt_value), tz=timezone.utc).astimezone(PARIS_TZ)
+
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ)
 
     @staticmethod
     def _calculate_heat_index(temp: float, humidity: float) -> Optional[float]:
@@ -153,16 +161,10 @@ class WeatherTransformer:
         weather_list = hourly.get("weather", [])
         weather = weather_list[0] if weather_list else {}
         
-        # Timestamp from hourly.dt (Unix timestamp)
-        dt_value = hourly.get("dt")
-        if dt_value:
-            timestamp = datetime.fromtimestamp(int(dt_value), tz=timezone.utc).isoformat()
-        else:
-            timestamp = datetime.now(timezone.utc).isoformat()
-            logger.warning("No dt found in hourly data, using current time")
-        
-        # Extract hour from _storage for consistency
-        hour = WeatherTransformer._extract_hour(raw_record)
+        paris_dt = WeatherTransformer._extract_paris_time(raw_record, hourly)
+        timestamp = paris_dt.astimezone(timezone.utc).isoformat()
+        hour = paris_hour(paris_dt)
+        date_paris = paris_date_str(paris_dt)
         
         # City name
         if city_name:
@@ -228,8 +230,11 @@ class WeatherTransformer:
         transformed = {
             # Core identification
             "timestamp_utc": timestamp,
+            "timestamp_paris": paris_dt.isoformat(),
+            "date_paris": date_paris,
             "hour": hour,
-            "hour_formatted": f"{hour:02d}:00" if hour is not None else None,
+            "hour_paris": hour,
+            "hour_formatted": format_hour_paris(paris_dt),
             "city": city,
             
             # Temperature fields

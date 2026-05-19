@@ -4,6 +4,7 @@ Only Silver (cleaned) and Gold (aggregated) layers are stored in MongoDB.
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote_plus
 
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError, ConnectionFailure
@@ -56,9 +57,8 @@ class MongoDBStorage:
                 socketTimeoutMS=10000,
             )
             
-            # Verify connection
-            self._client.admin.command('ping')
             self._db = self._client[self._settings.mongodb_database]
+            self._db.command("ping")
             
             logger.info(f"Connected to MongoDB: {self._settings.mongodb_database}")
             
@@ -82,13 +82,23 @@ class MongoDBStorage:
         """
         if self._settings.mongodb_uri:
             return self._settings.mongodb_uri
-        
-        # auth_part = ""
-        # if self._settings.mongodb_username and self._settings.mongodb_password:
-        #     auth_part = f"{self._settings.mongodb_username}:{self._settings.mongodb_password}@"
-        
-        # return f"mongodb://{auth_part}{self._settings.mongodb_host}:{self._settings.mongodb_port}"
-        return f"mongodb://{self._settings.mongodb_host}:{self._settings.mongodb_port}"
+
+        host = self._settings.mongodb_host
+        port = self._settings.mongodb_port
+        database = self._settings.mongodb_database
+        username = self._settings.mongodb_username
+        password = self._settings.mongodb_password
+        auth_source = self._settings.mongodb_auth_source or database
+
+        if username and password:
+            user = quote_plus(username)
+            pwd = quote_plus(password)
+            return (
+                f"mongodb://{user}:{pwd}@{host}:{port}/{database}"
+                f"?authSource={quote_plus(auth_source)}"
+            )
+
+        return f"mongodb://{host}:{port}/{database}"
 
     def _create_indexes(self) -> None:
         """Create indexes for efficient querying."""
@@ -96,10 +106,16 @@ class MongoDBStorage:
             return
             
         try:
-            self._db.silver_weather.create_index([("city", ASCENDING), ("datetime", ASCENDING)])
+            self._db.silver_weather.create_index(
+                [("city", ASCENDING), ("date_paris", ASCENDING), ("hour_paris", ASCENDING)],
+                unique=True,
+            )
             self._db.silver_weather.create_index([("etl_timestamp", ASCENDING)])
-            
-            self._db.silver_air_quality.create_index([("city", ASCENDING), ("datetime", ASCENDING)])
+
+            self._db.silver_air_quality.create_index(
+                [("city", ASCENDING), ("date_paris", ASCENDING), ("hour_paris", ASCENDING)],
+                unique=True,
+            )
             self._db.silver_air_quality.create_index([("etl_timestamp", ASCENDING)])
             
             self._db.gold_daily.create_index([("city", ASCENDING), ("date", ASCENDING)], unique=True)
@@ -139,14 +155,28 @@ class MongoDBStorage:
         try:
             document = {
                 "city": city.lower(),
+                "timestamp_utc": data.get("timestamp_utc"),
+                "timestamp_paris": data.get("timestamp_paris"),
+                "date_paris": data.get("date_paris"),
+                "hour": data.get("hour_paris", data.get("hour")),
+                "hour_paris": data.get("hour_paris", data.get("hour")),
                 "cleaned_data": data,
                 "datetime": data.get("datetime"),
                 "etl_timestamp": datetime.now(timezone.utc),
             }
-            
-            result = self._db.silver_weather.insert_one(document)
-            logger.debug(f"Inserted silver weather for {city}: {result.inserted_id}")
-            return str(result.inserted_id)
+
+            result = self._db.silver_weather.replace_one(
+                {
+                    "city": city.lower(),
+                    "date_paris": document["date_paris"],
+                    "hour_paris": document["hour_paris"],
+                },
+                document,
+                upsert=True,
+            )
+            doc_id = result.upserted_id or "updated"
+            logger.debug(f"Upserted silver weather for {city}: {doc_id}")
+            return str(doc_id)
             
         except PyMongoError as e:
             logger.error(f"Failed to insert silver weather for {city}: {e}")
@@ -169,14 +199,28 @@ class MongoDBStorage:
         try:
             document = {
                 "city": city.lower(),
+                "timestamp_utc": data.get("timestamp_utc"),
+                "timestamp_paris": data.get("timestamp_paris"),
+                "date_paris": data.get("date_paris"),
+                "hour": data.get("hour_paris", data.get("hour")),
+                "hour_paris": data.get("hour_paris", data.get("hour")),
                 "cleaned_data": data,
                 "datetime": data.get("datetime"),
                 "etl_timestamp": datetime.now(timezone.utc),
             }
-            
-            result = self._db.silver_air_quality.insert_one(document)
-            logger.debug(f"Inserted silver air quality for {city}: {result.inserted_id}")
-            return str(result.inserted_id)
+
+            result = self._db.silver_air_quality.replace_one(
+                {
+                    "city": city.lower(),
+                    "date_paris": document["date_paris"],
+                    "hour_paris": document["hour_paris"],
+                },
+                document,
+                upsert=True,
+            )
+            doc_id = result.upserted_id or "updated"
+            logger.debug(f"Upserted silver air quality for {city}: {doc_id}")
+            return str(doc_id)
             
         except PyMongoError as e:
             logger.error(f"Failed to insert silver air quality for {city}: {e}")
@@ -232,9 +276,47 @@ class MongoDBStorage:
 
     def insert_gold_daily(self, data: Dict[str, Any], city: str, date: str) -> Optional[str]:
         return self._insert_gold("gold_daily", data, city, date)
-        
-    
-    
+
+    def iter_silver_weather_records(
+        self, date_paris: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Return cleaned weather records from the silver collection."""
+        if self._db is None:
+            return []
+        query = {"date_paris": date_paris} if date_paris else {}
+        return [doc["cleaned_data"] for doc in self._db.silver_weather.find(query)]
+
+    def iter_silver_air_quality_records(
+        self, date_paris: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Return cleaned air quality records from the silver collection."""
+        if self._db is None:
+            return []
+        query = {"date_paris": date_paris} if date_paris else {}
+        return [doc["cleaned_data"] for doc in self._db.silver_air_quality.find(query)]
+
+    def iter_gold_weather_analytics(self) -> Dict[tuple, Dict[str, Any]]:
+        """Return weather gold analytics keyed by (city, date)."""
+        if self._db is None:
+            return {}
+        records: Dict[tuple, Dict[str, Any]] = {}
+        for doc in self._db.gold_weather_daily.find():
+            analytics = doc.get("analytics", {})
+            key = (analytics.get("city", doc.get("city")), doc.get("date"))
+            records[key] = analytics
+        return records
+
+    def iter_gold_air_quality_analytics(self) -> Dict[tuple, Dict[str, Any]]:
+        """Return air quality gold analytics keyed by (city, date)."""
+        if self._db is None:
+            return {}
+        records: Dict[tuple, Dict[str, Any]] = {}
+        for doc in self._db.gold_air_quality_daily.find():
+            analytics = doc.get("analytics", {})
+            key = (analytics.get("city", doc.get("city")), doc.get("date"))
+            records[key] = analytics
+        return records
+
     def get_stats(self) -> Dict[str, int]:
         """Get collection statistics.
         
@@ -248,6 +330,8 @@ class MongoDBStorage:
             return {
                 "silver_weather": self._db.silver_weather.count_documents({}),
                 "silver_air_quality": self._db.silver_air_quality.count_documents({}),
+                "gold_weather_daily": self._db.gold_weather_daily.count_documents({}),
+                "gold_air_quality_daily": self._db.gold_air_quality_daily.count_documents({}),
                 "gold_daily": self._db.gold_daily.count_documents({}),
             }
         except PyMongoError as e:

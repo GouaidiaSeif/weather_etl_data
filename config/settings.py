@@ -31,9 +31,13 @@ class Settings:
     """
     openweather_api_key: str
     aqicn_api_key: str
+    data_base_path: Path
     data_raw_path: Path
     data_processed_path: Path
+    data_silver_path: Path
+    data_gold_path: Path
     log_path: Path = field(default_factory=lambda: Path("data/logs"))
+    storage_backend: str = "local"
     log_level: str = "INFO"
     request_timeout: int = 30
     max_retries: int = 3
@@ -45,6 +49,7 @@ class Settings:
     mongodb_database: str = "weather_etl"
     mongodb_username: Optional[str] = None
     mongodb_password: Optional[str] = None
+    mongodb_auth_source: str = "weather_etl"
     
     @classmethod
     def from_env(cls) -> "Settings":
@@ -79,13 +84,21 @@ class Settings:
         mongodb_database = os.getenv("MONGODB_DATABASE", "weather_etl")
         mongodb_username = os.getenv("MONGODB_USERNAME")
         mongodb_password = os.getenv("MONGODB_PASSWORD")
+        mongodb_auth_source = os.getenv("MONGODB_AUTH_SOURCE", "weather_etl")
         
+        data_base = Path(os.getenv("DATA_BASE_PATH", project_root / "data"))
+        storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+
         return cls(
             openweather_api_key=openweather_key,
             aqicn_api_key=aqicn_key,
-            data_raw_path=Path(os.getenv("DATA_RAW_PATH", project_root / "data" / "raw")),
-            data_processed_path=Path(os.getenv("DATA_PROCESSED_PATH", project_root / "data" / "processed")),
-            log_path=Path(os.getenv("LOG_PATH", project_root / "data" / "logs")),
+            data_base_path=data_base,
+            data_raw_path=Path(os.getenv("DATA_RAW_PATH", data_base / "raw")),
+            data_processed_path=Path(os.getenv("DATA_PROCESSED_PATH", data_base / "processed")),
+            data_silver_path=Path(os.getenv("DATA_SILVER_PATH", data_base / "silver")),
+            data_gold_path=Path(os.getenv("DATA_GOLD_PATH", data_base / "gold")),
+            log_path=Path(os.getenv("LOG_PATH", data_base / "logs")),
+            storage_backend=storage_backend,
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             request_timeout=int(os.getenv("REQUEST_TIMEOUT", "30")),
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
@@ -96,6 +109,7 @@ class Settings:
             mongodb_database=mongodb_database,
             mongodb_username=mongodb_username,
             mongodb_password=mongodb_password,
+            mongodb_auth_source=mongodb_auth_source,
         )
 
 

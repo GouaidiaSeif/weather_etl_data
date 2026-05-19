@@ -2,9 +2,9 @@
 Main ETL pipeline for weather and air quality data with Hive partitioning.
 
 Architecture:
-    RAW    → data/raw/      (original API responses - filesystem only)
-    SILVER → data/silver/   (cleaned & standardized datasets - filesystem + MongoDB)
-    GOLD   → data/gold/     (daily aggregated analytics - filesystem + MongoDB)
+    RAW    → MinIO (or local data/raw/) — original API responses only
+    SILVER → MongoDB — cleaned & standardized datasets
+    GOLD   → MongoDB — daily aggregated analytics
 
 v3 IMPROVEMENTS:
 - Extract-First Architecture: All cities extracted before any processing
@@ -17,19 +17,25 @@ v3.1
 - MongoDB integration for gold : add 3 collections for air quality, weather and combined data
 """
 
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import json
+
+# Allow running as: python transformations/pipline_final.py
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from clients.openweather_client import OpenWeatherClient
 from clients.aqicn_client import AQICNClient
 from config.settings import Settings, get_settings
 from config.towns import FRENCH_TOWNS, Town
+from storage.data_store import DataStore, create_raw_store
 from storage.hive_storage import HivePartitionedStorage
 from storage.mongodb_storage import MongoDBStorage
 from utils.logger import get_logger
+from utils.timezone_utils import floor_to_paris_hour, get_reference_hour_paris, paris_date_str
 
 from transformations.improved_weather_transformer import WeatherTransformer
 from transformations.improved_air_quality_transformer import AirQualityTransformer
@@ -48,8 +54,8 @@ class ExtractedData:
     town: Town
     weather_data: Optional[Dict[str, Any]] = None
     air_quality_data: Optional[Dict[str, Any]] = None
-    weather_raw_path: Optional[Path] = None
-    air_quality_raw_path: Optional[Path] = None
+    weather_raw_keys: List[str] = field(default_factory=list)
+    air_quality_raw_key: Optional[str] = None
     weather_error: Optional[str] = None
     air_quality_error: Optional[str] = None
 
@@ -60,7 +66,7 @@ class ETLResult:
     success: bool
     town: str
     api_source: str
-    filepaths: List[Path] = field(default_factory=list)
+    object_keys: List[str] = field(default_factory=list)
     error: Optional[str] = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -80,11 +86,10 @@ class WeatherETLPipeline:
         self._settings = settings or get_settings()
         self._towns = towns or FRENCH_TOWNS
 
-        self._raw_base = Path(self._settings.data_raw_path)
-        self._silver_base = Path("data/silver")
-        self._gold_base = Path("data/gold")
+        self._raw_store: DataStore = create_raw_store(self._settings)
+        self._raw_prefix = "raw"
 
-        self._storage = HivePartitionedStorage(self._raw_base)
+        self._storage = HivePartitionedStorage(self._raw_store, prefix=self._raw_prefix)
 
         # Initialize MongoDB storage (for Silver and Gold layers only)
         self._mongodb = MongoDBStorage(self._settings)
@@ -148,19 +153,19 @@ class WeatherETLPipeline:
             try:
                 data.weather_data = self._weather_client.fetch_hourly_data(town)
                 hourly_count = len(data.weather_data.get('hourly', []))
-                logger.info(f"  ✓ Weather: {hourly_count} hourly records")
+                logger.info(f"  OK Weather: {hourly_count} hourly records")
             except Exception as e:
                 data.weather_error = str(e)
-                logger.error(f"  ✗ Weather extraction failed: {e}")
+                logger.error(f"  FAIL Weather extraction failed: {e}")
 
             # Extract air quality
             try:
                 data.air_quality_data = self._air_quality_client.fetch_by_coordinates(town)
                 aqi = data.air_quality_data.get("data", {}).get("aqi", "N/A")
-                logger.info(f"  ✓ Air Quality: AQI {aqi}")
+                logger.info(f"  OK Air Quality: AQI {aqi}")
             except Exception as e:
                 data.air_quality_error = str(e)
-                logger.error(f"  ✗ Air Quality extraction failed: {e}")
+                logger.error(f"  FAIL Air Quality extraction failed: {e}")
 
             extracted_data.append(data)
 
@@ -175,7 +180,7 @@ class WeatherETLPipeline:
     def _save_all_raw(self, extracted_data: List[ExtractedData], reference_hour: datetime) -> None:
         """Save all extracted data to raw storage (Bronze layer - filesystem only)."""
         logger.info("=" * 60)
-        logger.info("PHASE 2: BRONZE - Saving all raw data (filesystem only)")
+        logger.info("PHASE 2: BRONZE - Saving all raw data (MinIO / object storage only)")
         logger.info("=" * 60)
 
         for data in extracted_data:
@@ -191,11 +196,15 @@ class WeatherETLPipeline:
                         hours_back=1,
                     )
                     if paths:
-                        data.weather_raw_path = paths[0]
-                        logger.info(f"  ✓ {town.name}: Saved weather raw → {paths[0].name}")
+                        data.weather_raw_keys = paths
+                        logger.info(
+                            f"  OK {town.name}: Saved {len(paths)} weather raw file(s) "
+                            f"-> {self._raw_store.key_name(paths[0])}"
+                            + (f" (+{len(paths) - 1} more)" if len(paths) > 1 else "")
+                        )
                 except Exception as e:
                     data.weather_error = str(e)
-                    logger.error(f"  ✗ {town.name}: Failed to save weather raw: {e}")
+                    logger.error(f"  FAIL {town.name}: Failed to save weather raw: {e}")
 
             # Save air quality raw (filesystem only - NOT MongoDB)
             if data.air_quality_data:
@@ -205,18 +214,66 @@ class WeatherETLPipeline:
                         city_name=town.name,
                         target_hour=reference_hour,
                     )
-                    data.air_quality_raw_path = path
-                    logger.info(f"  ✓ {town.name}: Saved air quality raw → {path.name}")
+                    data.air_quality_raw_key = path
+                    logger.info(f"  OK {town.name}: Saved air quality raw -> {self._raw_store.key_name(path)}")
                 except Exception as e:
                     data.air_quality_error = str(e)
-                    logger.error(f"  ✗ {town.name}: Failed to save air quality raw: {e}")
+                    logger.error(f"  FAIL {town.name}: Failed to save air quality raw: {e}")
+
+    def _link_raw_keys_from_storage(
+        self,
+        extracted_data: List[ExtractedData],
+        reference_hour: datetime,
+    ) -> None:
+        """Point silver transform at MinIO raw files (including ones saved in earlier runs)."""
+        ref_paris = floor_to_paris_hour(reference_hour)
+        hour_label = ref_paris.strftime("%H")
+
+        for data in extracted_data:
+            town = data.town
+            weather_keys = list(dict.fromkeys(data.weather_raw_keys))
+
+            expected_weather = self._storage.hourly_object_key(
+                town.name, reference_hour, "openweather"
+            )
+            if self._raw_store.exists(expected_weather) and expected_weather not in weather_keys:
+                weather_keys.append(expected_weather)
+
+            if not weather_keys:
+                weather_keys = self._storage.list_raw_keys_for_city_day(
+                    town.name, ref_paris, "openweather"
+                )
+                if weather_keys:
+                    logger.info(
+                        f"  LINK {town.name}: Found {len(weather_keys)} weather raw file(s) in MinIO"
+                    )
+
+            data.weather_raw_keys = weather_keys
+
+            if data.air_quality_raw_key and self._raw_store.exists(data.air_quality_raw_key):
+                continue
+
+            expected_aq = self._storage.hourly_object_key(
+                town.name, reference_hour, "aqicn"
+            )
+            if self._raw_store.exists(expected_aq):
+                data.air_quality_raw_key = expected_aq
+                continue
+
+            for key in self._storage.list_raw_keys_for_city_day(
+                town.name, ref_paris, "aqicn"
+            ):
+                if f"air_quality_{hour_label}_raw" in key:
+                    data.air_quality_raw_key = key
+                    logger.info(f"  LINK {town.name}: Air quality raw from MinIO -> {self._raw_store.key_name(key)}")
+                    break
 
     # =====================================================
     # PHASE 3: TRANSFORM (Silver layer - filesystem + MongoDB)
     # =====================================================
 
     def _transform_all(self, extracted_data: List[ExtractedData]) -> List[ETLResult]:
-        """Transform all raw data to silver layer (filesystem + MongoDB)."""
+        """Transform all raw data to silver layer (MongoDB only)."""
         logger.info("=" * 60)
         logger.info("PHASE 3: SILVER - Transforming all raw data")
         logger.info("=" * 60)
@@ -226,58 +283,54 @@ class WeatherETLPipeline:
         for data in extracted_data:
             town = data.town
 
-            # Transform weather
-            if data.weather_raw_path and data.weather_raw_path.exists():
+            # Transform weather (one MongoDB document per hourly raw file)
+            for weather_key in data.weather_raw_keys:
+                if not self._raw_store.exists(weather_key):
+                    logger.warning(f"  WARN {town.name}: Weather raw missing: {weather_key}")
+                    continue
                 try:
-                    with open(data.weather_raw_path) as f:
-                        raw_data = json.load(f)
-
+                    raw_data = self._raw_store.get_json(weather_key)
                     cleaned = WeatherTransformer.transform(raw_data, city_name=town.name)
-                    silver_path = self._save_silver(data.weather_raw_path, cleaned)
-
-                    # Insert to MongoDB (Silver layer)
                     mongo_id = self._mongodb.insert_silver_weather(cleaned, town.name)
                     if mongo_id:
-                        logger.info(f"  ✓ {town.name}: Weather transformed → {silver_path.name}, MongoDB → {mongo_id}")
+                        logger.info(
+                            f"  OK {town.name}: Weather silver -> MongoDB {mongo_id} "
+                            f"({self._raw_store.key_name(weather_key)})"
+                        )
                     else:
-                        logger.info(f"  ✓ {town.name}: Weather transformed → {silver_path.name}")
+                        logger.warning(f"  WARN {town.name}: Weather silver MongoDB insert failed")
 
                     results.append(ETLResult(
-                        success=True,
+                        success=bool(mongo_id),
                         town=town.name,
                         api_source="openweather",
-                        filepaths=[silver_path]
+                        object_keys=[mongo_id] if mongo_id else [],
                     ))
                 except Exception as e:
                     results.append(ETLResult(
                         success=False,
                         town=town.name,
                         api_source="openweather",
-                        error=str(e)
+                        error=str(e),
                     ))
-                    logger.error(f"  ✗ {town.name}: Weather transform failed: {e}")
+                    logger.error(f"  FAIL {town.name}: Weather transform failed: {e}")
 
             # Transform air quality
-            if data.air_quality_raw_path and data.air_quality_raw_path.exists():
+            if data.air_quality_raw_key and self._raw_store.exists(data.air_quality_raw_key):
                 try:
-                    with open(data.air_quality_raw_path) as f:
-                        raw_data = json.load(f)
-
+                    raw_data = self._raw_store.get_json(data.air_quality_raw_key)
                     cleaned = AirQualityTransformer.transform(raw_data, city_name=town.name)
-                    silver_path = self._save_silver(data.air_quality_raw_path, cleaned)
-
-                    # Insert to MongoDB (Silver layer)
                     mongo_id = self._mongodb.insert_silver_air_quality(cleaned, town.name)
                     if mongo_id:
-                        logger.info(f"  ✓ {town.name}: Air quality transformed → {silver_path.name}, MongoDB → {mongo_id}")
+                        logger.info(f"  OK {town.name}: Air quality silver -> MongoDB {mongo_id}")
                     else:
-                        logger.info(f"  ✓ {town.name}: Air quality transformed → {silver_path.name}")
+                        logger.warning(f"  WARN {town.name}: Air quality silver MongoDB insert failed")
 
                     results.append(ETLResult(
-                        success=True,
+                        success=bool(mongo_id),
                         town=town.name,
                         api_source="aqicn",
-                        filepaths=[silver_path]
+                        object_keys=[mongo_id] if mongo_id else [],
                     ))
                 except Exception as e:
                     results.append(ETLResult(
@@ -286,105 +339,52 @@ class WeatherETLPipeline:
                         api_source="aqicn",
                         error=str(e)
                     ))
-                    logger.error(f"  ✗ {town.name}: Air quality transform failed: {e}")
+                    logger.error(f"  FAIL {town.name}: Air quality transform failed: {e}")
 
         success_count = sum(1 for r in results if r.success)
         logger.info(f"Transform complete: {success_count}/{len(results)} operations successful")
         return results
 
-    def _save_silver(self, raw_path: Path, cleaned_data: Dict[str, Any]) -> Path:
-        """Save cleaned data to silver layer."""
-        relative = raw_path.relative_to(self._raw_base)
-
-        silver_filename = raw_path.stem.replace("_raw", "_cleaned") + ".json"
-        silver_path = self._silver_base / relative.parent / silver_filename
-        silver_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(silver_path, 'w') as f:
-            json.dump(cleaned_data, f, indent=2, default=str)
-
-        return silver_path
-
     # =====================================================
-    # PHASE 4: GOLD (filesystem via GoldPipeline.run() + MongoDB)
+    # PHASE 4: GOLD (MongoDB only)
     # =====================================================
 
-    def _run_gold(self) -> List[ETLResult]:
-        """Run gold aggregation using GoldPipeline.run(), then persist to MongoDB."""
+    def _run_gold(self, reference_hour: datetime) -> List[ETLResult]:
+        """Run gold aggregation and persist to MongoDB."""
         logger.info("=" * 60)
         logger.info("PHASE 4: GOLD - Aggregating silver data")
         logger.info("=" * 60)
 
         results: List[ETLResult] = []
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        # Run the gold pipeline (writes all files to filesystem)
         try:
+            aggregation_date = paris_date_str(reference_hour)
             gold = GoldPipeline(
-                silver_base_path=self._silver_base,
-                gold_base_path=self._gold_base,
+                mongodb=self._mongodb,
+                aggregation_date_paris=aggregation_date,
             )
             gold.run()
-            logger.info("✓ Gold aggregation completed (filesystem)")
+            logger.info("OK Gold aggregation completed (MongoDB)")
+            stats = self._mongodb.get_stats()
+            gold_count = (
+                stats.get("gold_weather_daily", 0)
+                + stats.get("gold_air_quality_daily", 0)
+                + stats.get("gold_daily", 0)
+            )
+            for town in self._towns:
+                results.append(ETLResult(
+                    success=gold_count > 0,
+                    town=town.name,
+                    api_source="gold_aggregation",
+                ))
         except Exception as e:
-            logger.error(f"✗ Gold aggregation failed: {e}")
+            logger.error(f"FAIL Gold aggregation failed: {e}")
             for town in self._towns:
                 results.append(ETLResult(
                     success=False,
                     town=town.name,
                     api_source="gold_aggregation",
-                    error=str(e)
-                ))
-            return results
-
-        # Mapping subdir → méthode MongoDB correspondante
-        GOLD_MONGO_INSERTERS = {
-            "weather_daily":     lambda mongo, data, town, date: mongo.insert_gold_weather_daily(data, town, date),
-            "air_quality_daily": lambda mongo, data, town, date: mongo.insert_gold_air_quality_daily(data, town, date),
-            "combined_daily":    lambda mongo, data, town, date: mongo.insert_gold_daily(data, town, date),
-        }
-
-        # After gold files are written, insert into MongoDB per town
-        for town in self._towns:
-            gold_paths = []
-            try:
-                # Collect the gold files written by GoldPipeline.run() for this town
-                for subdir, inserter in GOLD_MONGO_INSERTERS.items():
-                    p = self._gold_base / subdir / f"city={town.name.lower()}" / f"{date_str}.json"
-                    if not p.exists():
-                        logger.warning(f"  ⚠ {town.name}: No gold file found at {p}")
-                        continue
-                    
-                    gold_paths.append(p)
-                # Read combined file for MongoDB insertion (if it exists) remplace combined_path par gold_paths
-                # combined_path = (
-                #     self._gold_base / subdir / f"city={town.name.lower()}" / f"{date_str}.json"
-                # )  
-                
-                # if combined_path.exists():
-                    with open(p) as f:
-                        data = json.load(f)
-                    mongo_id = inserter(self._mongodb,data, town.name, date_str)
-                    # mongo_id = self._mongodb.insert_gold_daily(combined_data, town.name, date_str)
-                    if mongo_id:
-                        logger.info(f"  ✓ {town.name}: [{subdir}] Gold MongoDB → {mongo_id}")
-                    else:
-                        logger.warning(f"  ⚠ {town.name}: [{subdir}] MongoDB insert returned None")
-
-                results.append(ETLResult(
-                    success=True,
-                    town=town.name,
-                    api_source="gold_aggregation",
-                    filepaths=gold_paths
-                ))
-
-            except Exception as e:
-                logger.error(f"  ✗ {town.name}: Gold MongoDB insert failed: {e}")
-                results.append(ETLResult(
-                    success=False,
-                    town=town.name,
-                    api_source="gold_aggregation",
-                    error=str(e)
+                    error=str(e),
                 ))
 
         success_count = sum(1 for r in results if r.success)
@@ -404,10 +404,12 @@ class WeatherETLPipeline:
         Returns:
             Dict with summary of operations
         """
-        reference_hour = datetime.now(timezone.utc)
+        reference_hour = get_reference_hour_paris()
         logger.info("=" * 70)
-        logger.info(f"Starting hourly ETL at {reference_hour.isoformat()}")
-        logger.info("Flow: Extract → RAW (Bronze/filesystem) → Transform → Silver (fs+MongoDB) → Aggregate → Gold (fs+MongoDB)")
+        logger.info(
+            f"Starting hourly ETL — reference Paris hour: {reference_hour.isoformat()}"
+        )
+        logger.info("Flow: Extract -> RAW (MinIO) -> Transform -> Silver (MongoDB) -> Aggregate -> Gold (MongoDB)")
         logger.info("=" * 70)
 
         # Phase 1: Extract all cities
@@ -416,16 +418,19 @@ class WeatherETLPipeline:
         # Phase 2: Save raw (Bronze - filesystem only)
         self._save_all_raw(extracted_data, reference_hour)
 
+        # Resolve MinIO keys so silver/gold run even when this hour's save returned no paths
+        self._link_raw_keys_from_storage(extracted_data, reference_hour)
+
         # Phase 3: Transform (Silver - filesystem + MongoDB)
         silver_results = self._transform_all(extracted_data)
 
         # Phase 4: Gold (filesystem via GoldPipeline.run() + MongoDB)
-        gold_results = self._run_gold()
+        gold_results = self._run_gold(reference_hour)
 
         # Compile summary
         all_results = silver_results + gold_results
         successful = sum(1 for r in all_results if r.success)
-        total_files = sum(len(r.filepaths) for r in all_results if r.success)
+        total_files = sum(len(r.object_keys) for r in all_results if r.success)
 
         summary = {
             "timestamp": reference_hour.isoformat(),
@@ -464,7 +469,7 @@ class WeatherETLPipeline:
 
             if result.success:
                 breakdown[api]["success"] += 1
-                breakdown[api]["files"] += len(result.filepaths)
+                breakdown[api]["files"] += len(result.object_keys)
             else:
                 breakdown[api]["failed"] += 1
 

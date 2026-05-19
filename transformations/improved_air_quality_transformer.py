@@ -12,6 +12,13 @@ FIXED v3:
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from utils.logger import get_logger
+from utils.timezone_utils import (
+    PARIS_TZ,
+    format_hour_paris,
+    parse_storage_timestamp,
+    paris_date_str,
+    paris_hour,
+)
 
 logger = get_logger(__name__)
 
@@ -73,17 +80,20 @@ class AirQualityTransformer:
         }
 
     @staticmethod
-    def _extract_hour(raw_record: Dict[str, Any]) -> Optional[int]:
-        """Extract hour from _storage.hour_timestamp."""
+    def _extract_paris_time(raw_record: Dict[str, Any], time_info: Dict[str, Any]) -> datetime:
         storage = raw_record.get("_storage", {})
-        hour_ts = storage.get("hour_timestamp", "")
-        if hour_ts:
+        for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
+            dt = parse_storage_timestamp(storage.get(key, ""))
+            if dt is not None:
+                return dt.astimezone(PARIS_TZ)
+
+        if "v" in time_info:
             try:
-                dt = datetime.fromisoformat(hour_ts.replace("Z", "+00:00"))
-                return dt.hour
-            except Exception as e:
-                logger.warning(f"Failed to parse hour_timestamp: {e}")
-        return None
+                return datetime.fromtimestamp(int(time_info["v"]), tz=timezone.utc).astimezone(PARIS_TZ)
+            except (ValueError, TypeError):
+                pass
+
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ)
 
     @staticmethod
     def _get_primary_pollutant(iaqi: Dict[str, Any]) -> Optional[str]:
@@ -151,28 +161,10 @@ class AirQualityTransformer:
         city_info = data.get("city", {})
         forecast = data.get("forecast", {})
         
-        # Extract timestamp from API
-        timestamp = None
-        if "v" in time_info:
-            try:
-                unix_ts = int(time_info["v"])
-                timestamp = datetime.fromtimestamp(unix_ts, tz=timezone.utc).isoformat()
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Failed to parse AQICN timestamp: {e}")
-        
-        if timestamp is None and "s" in time_info:
-            try:
-                time_str = time_info["s"]
-                local_time = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-                timestamp = local_time.replace(tzinfo=timezone.utc).isoformat()
-            except Exception as e:
-                logger.warning(f"Failed to parse AQICN local time: {e}")
-        
-        if timestamp is None:
-            timestamp = datetime.now(timezone.utc).isoformat()
-        
-        # Extract hour from _storage
-        hour = AirQualityTransformer._extract_hour(raw_record)
+        paris_dt = AirQualityTransformer._extract_paris_time(raw_record, time_info)
+        timestamp = paris_dt.astimezone(timezone.utc).isoformat()
+        hour = paris_hour(paris_dt)
+        date_paris = paris_date_str(paris_dt)
         
         # City name
         if city_name:
@@ -212,8 +204,11 @@ class AirQualityTransformer:
         transformed = {
             # Core identification
             "timestamp_utc": timestamp,
+            "timestamp_paris": paris_dt.isoformat(),
+            "date_paris": date_paris,
             "hour": hour,
-            "hour_formatted": f"{hour:02d}:00" if hour is not None else None,
+            "hour_paris": hour,
+            "hour_formatted": format_hour_paris(paris_dt),
             "city": city,
             
             # Station info

@@ -14,3 +14,6 @@ typing-extensions>=4.8.0
 
 # MongoDB driver
 pymongo>=4.6.0
+ 
+# MinIO / S3-compatible storage
+minio>=7.2.0
