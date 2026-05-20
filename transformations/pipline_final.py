@@ -40,6 +40,7 @@ from utils.timezone_utils import floor_to_paris_hour, get_reference_hour_paris, 
 from transformations.improved_weather_transformer import WeatherTransformer
 from transformations.improved_air_quality_transformer import AirQualityTransformer
 from transformations.improved_gold_pipeline import GoldPipeline
+from alerts.service import AlertService
 
 logger = get_logger(__name__)
 
@@ -96,6 +97,7 @@ class WeatherETLPipeline:
 
         self._weather_client: Optional[OpenWeatherClient] = None
         self._air_quality_client: Optional[AQICNClient] = None
+        self._alerts: Optional[AlertService] = None
 
         logger.info(f"WeatherETLPipeline initialized for {len(self._towns)} towns")
 
@@ -117,6 +119,12 @@ class WeatherETLPipeline:
             logger.info("MongoDB connected successfully")
         else:
             logger.warning("MongoDB connection failed - continuing without MongoDB")
+
+        self._alerts = AlertService(self._settings, self._mongodb)
+        if self._alerts.enabled:
+            logger.info("Discord alerts enabled")
+        else:
+            logger.info("Discord alerts disabled (set DISCORD_WEBHOOK_* in .env)")
 
         logger.info("API clients initialized")
         return self
@@ -297,6 +305,8 @@ class WeatherETLPipeline:
                             f"  OK {town.name}: Weather silver -> MongoDB {mongo_id} "
                             f"({self._raw_store.key_name(weather_key)})"
                         )
+                        if self._alerts and self._alerts.enabled:
+                            self._alerts.process_silver_weather(cleaned)
                     else:
                         logger.warning(f"  WARN {town.name}: Weather silver MongoDB insert failed")
 
@@ -323,6 +333,8 @@ class WeatherETLPipeline:
                     mongo_id = self._mongodb.insert_silver_air_quality(cleaned, town.name)
                     if mongo_id:
                         logger.info(f"  OK {town.name}: Air quality silver -> MongoDB {mongo_id}")
+                        if self._alerts and self._alerts.enabled:
+                            self._alerts.process_silver_air_quality(cleaned)
                     else:
                         logger.warning(f"  WARN {town.name}: Air quality silver MongoDB insert failed")
 
@@ -365,6 +377,8 @@ class WeatherETLPipeline:
             )
             gold.run()
             logger.info("OK Gold aggregation completed (MongoDB)")
+            if self._alerts and self._alerts.enabled:
+                self._alerts.process_daily_digest(self._mongodb, aggregation_date)
             stats = self._mongodb.get_stats()
             gold_count = (
                 stats.get("gold_weather_daily", 0)
@@ -447,6 +461,14 @@ class WeatherETLPipeline:
         mongodb_stats = self._mongodb.get_stats()
         if mongodb_stats:
             summary['mongodb_stats'] = mongodb_stats
+
+        if self._alerts and self._alerts.enabled:
+            self._alerts.process_etl_failures(
+                silver_results,
+                gold_results,
+                extracted_data,
+                reference_hour.isoformat(),
+            )
 
         logger.info("=" * 60)
         logger.info("ETL COMPLETE")

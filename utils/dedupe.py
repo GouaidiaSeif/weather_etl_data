@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, List
 
+from transformations.transformationscommon_cleaning import record_sort_timestamp
+
 
 def dedupe_records_by_hour(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Keep one record per hour — latest transformed_at wins."""
@@ -11,6 +13,8 @@ def dedupe_records_by_hour(records: List[Dict[str, Any]]) -> List[Dict[str, Any]
         if hour is None:
             continue
         existing = by_hour.get(hour)
-        if existing is None or record.get("transformed_at", "") >= existing.get("transformed_at", ""):
+        record_ts = record_sort_timestamp(record)
+        existing_ts = record_sort_timestamp(existing) if existing else ""
+        if existing is None or record_ts >= existing_ts:
             by_hour[hour] = record
     return sorted(by_hour.values(), key=lambda r: r.get("hour_paris", r.get("hour", 0)))

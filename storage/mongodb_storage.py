@@ -126,6 +126,10 @@ class MongoDBStorage:
             
             self._db.gold_air_quality_daily.create_index([("city", ASCENDING), ("date", ASCENDING)], unique=True)
             self._db.gold_air_quality_daily.create_index([("etl_timestamp", ASCENDING)])
+
+            self._db.alert_notifications.create_index(
+                [("alert_key", ASCENDING)], unique=True
+            )
             
             logger.debug("MongoDB indexes created successfully")
             
@@ -317,6 +321,24 @@ class MongoDBStorage:
             records[key] = analytics
         return records
 
+    def find_gold_weather_analytics_for_date(self, date_paris: str) -> List[Dict[str, Any]]:
+        """Return weather daily analytics documents for a Paris date."""
+        if self._db is None:
+            return []
+        return [
+            doc.get("analytics", {})
+            for doc in self._db.gold_weather_daily.find({"date": date_paris})
+        ]
+
+    def find_gold_air_quality_analytics_for_date(self, date_paris: str) -> List[Dict[str, Any]]:
+        """Return air quality daily analytics documents for a Paris date."""
+        if self._db is None:
+            return []
+        return [
+            doc.get("analytics", {})
+            for doc in self._db.gold_air_quality_daily.find({"date": date_paris})
+        ]
+
     def get_stats(self) -> Dict[str, int]:
         """Get collection statistics.
         
@@ -333,6 +355,7 @@ class MongoDBStorage:
                 "gold_weather_daily": self._db.gold_weather_daily.count_documents({}),
                 "gold_air_quality_daily": self._db.gold_air_quality_daily.count_documents({}),
                 "gold_daily": self._db.gold_daily.count_documents({}),
+                "alert_notifications": self._db.alert_notifications.count_documents({}),
             }
         except PyMongoError as e:
             logger.error(f"Failed to get stats: {e}")

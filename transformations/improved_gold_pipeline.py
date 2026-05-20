@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 
 from utils.logger import get_logger
 from utils.dedupe import dedupe_records_by_hour
+from transformations.transformationscommon_cleaning import daily_trust_flags
 
 if TYPE_CHECKING:
     from storage.mongodb_storage import MongoDBStorage
@@ -144,7 +145,9 @@ class GoldPipeline:
                 dew_points = [r["dew_point_celsius"] for r in records if r.get("dew_point_celsius") is not None]
                 
                 weather_mains = [r["weather_main"] for r in records if r.get("weather_main")]
-                severities = [r["weather_severity"] for r in records if r.get("weather_severity")]
+                severities = [
+                    r["weather_severity"] for r in records if r.get("weather_severity")
+                ]
                 uvi_categories = [r["uvi_category"] for r in records if r.get("uvi_category")]
                 
                 # Hourly breakdown
@@ -163,7 +166,17 @@ class GoldPipeline:
                 if not temps:
                     logger.warning(f"No temperature data for {city} on {date}")
                     continue
-                
+
+                data_quality_score = round(
+                    sum(
+                        r.get("_data_quality", {}).get("completeness_score", 0.0)
+                        for r in records
+                    )
+                    / len(records),
+                    2,
+                )
+                trust = daily_trust_flags(len(temps), len(records), data_quality_score)
+
                 # Build gold record
                 gold_record = {
                     # Basic info
@@ -216,21 +229,37 @@ class GoldPipeline:
                     "uvi_present": len(uvis) > 0,
                     "uvi_categories": list(set(uvi_categories)) if uvi_categories else [],
                     "max_precipitation_probability": max(pops) if pops else 0,
-                    "precipitation_detected": any(r.get("precipitation_probability_percent", 0) > 0 for r in records),
+                    "precipitation_detected": any(
+                        (r.get("precipitation_probability_percent") or 0) > 0
+                        for r in records
+                        if r.get("precipitation_probability_percent") is not None
+                    ),
                     
                     # Weather condition analysis
                     "dominant_weather_condition": self._get_dominant_value(weather_mains),
                     "weather_conditions": list(set(weather_mains)),
-                    "max_severity": max(severities, key=lambda s: ["normal", "moderate", "severe", "extreme"].index(s)) if severities else "unknown",
-                    
-                    # Comfort index
-                    "comfort_index": self._calculate_comfort_index(
-                        sum(temps) / len(temps),
-                        sum(humidities) / len(humidities) if humidities else 50
+                    "max_severity": (
+                        max(
+                            severities,
+                            key=lambda s: ["normal", "moderate", "severe", "extreme"].index(s),
+                        )
+                        if severities
+                        else None
                     ),
-                    
+
+                    # Comfort index
+                    "comfort_index": (
+                        self._calculate_comfort_index(
+                            sum(temps) / len(temps),
+                            sum(humidities) / len(humidities),
+                        )
+                        if humidities
+                        else None
+                    ),
+
                     # Data quality
-                    "data_quality_score": round(sum(r.get("_data_quality", {}).get("completeness_score", 1.0) for r in records) / len(records), 2),
+                    "data_quality_score": data_quality_score,
+                    **trust,
                     
                     # Metadata
                     "aggregated_at": datetime.now().isoformat(),
@@ -238,10 +267,13 @@ class GoldPipeline:
                 
                 # Extreme weather detection
                 gold_record["extreme_weather_flag"] = (
-                    gold_record["max_temperature"] >= 35 or
-                    gold_record["min_temperature"] <= -10 or
-                    (gold_record["max_wind_speed"] and gold_record["max_wind_speed"] >= 20) or
-                    gold_record["max_severity"] in ["severe", "extreme"]
+                    gold_record["max_temperature"] >= 35
+                    or gold_record["min_temperature"] <= -10
+                    or (
+                        gold_record["max_wind_speed"] is not None
+                        and gold_record["max_wind_speed"] >= 20
+                    )
+                    or gold_record["max_severity"] in ["severe", "extreme"]
                 )
                 
                 self._save_gold_record("weather_daily", city, date, gold_record)
@@ -313,10 +345,23 @@ class GoldPipeline:
                 if not aqis:
                     logger.warning(f"No AQI data for {city} on {date}")
                     continue
-                
-                # Count unhealthy hours
+
+                data_quality_score = round(
+                    sum(
+                        r.get("_data_quality", {}).get("completeness_score", 0.0)
+                        for r in records
+                    )
+                    / len(records),
+                    2,
+                )
+                trust = daily_trust_flags(len(aqis), len(records), data_quality_score)
+
                 unhealthy_hours = sum(1 for aqi in aqis if aqi > 100)
-                health_risks = [r.get("health_risk", {}).get("score", 0) for r in records if r.get("health_risk")]
+                health_risks = [
+                    r["health_risk"]["score"]
+                    for r in records
+                    if r.get("health_risk") and r["health_risk"].get("score") is not None
+                ]
                 
                 # Collect forecast data (from first record that has it)
                 uvi_forecast = None
@@ -380,12 +425,13 @@ class GoldPipeline:
                     "uvi_forecast_daily": uvi_forecast,
                     
                     # Data quality
-                    "data_quality_score": round(sum(r.get("_data_quality", {}).get("completeness_score", 1.0) for r in records) / len(records), 2),
-                    
+                    "data_quality_score": data_quality_score,
+                    **trust,
+
                     # Metadata
                     "aggregated_at": datetime.now().isoformat(),
                 }
-                
+
                 # Flag for significant air quality issues
                 gold_record["significant_pollution_flag"] = (
                     gold_record["max_aqi"] >= 150 or
@@ -420,15 +466,43 @@ class GoldPipeline:
             air = air_gold[key]
             
             try:
-                # Calculate combined comfort index
-                temp = weather.get("avg_temperature", 20)
-                humidity = weather.get("avg_humidity", 50)
-                aqi = air.get("avg_aqi", 50)
-                
-                weather_comfort = weather.get("comfort_index", {}).get("score", 50)
-                air_quality_score = max(0, 100 - aqi / 5)
-                outdoor_score = (weather_comfort * 0.4 + air_quality_score * 0.6)
-                
+                avg_aqi = air.get("avg_aqi")
+                weather_comfort = (weather.get("comfort_index") or {}).get("score")
+                has_weather_comfort = weather_comfort is not None
+                has_aqi = avg_aqi is not None
+
+                if has_aqi:
+                    air_quality_score = round(max(0, 100 - avg_aqi / 5), 1)
+                else:
+                    air_quality_score = None
+
+                if has_weather_comfort and has_aqi:
+                    outdoor_score = round(
+                        weather_comfort * 0.4 + air_quality_score * 0.6, 1
+                    )
+                    recommendation = (
+                        "excellent" if outdoor_score >= 80 else
+                        "good" if outdoor_score >= 60 else
+                        "moderate" if outdoor_score >= 40 else
+                        "poor" if outdoor_score >= 20 else
+                        "avoid"
+                    )
+                else:
+                    outdoor_score = None
+                    recommendation = "insufficient_data"
+
+                max_aqi = air.get("max_aqi")
+                if max_aqi is None:
+                    health_advisory = "insufficient_data"
+                elif max_aqi <= 50:
+                    health_advisory = "No restrictions"
+                elif max_aqi <= 100:
+                    health_advisory = "Sensitive groups caution"
+                elif max_aqi <= 150:
+                    health_advisory = "Limit outdoor activities"
+                else:
+                    health_advisory = "Avoid outdoor activities"
+
                 combined_record = {
                     "city": city,
                     "date": date,
@@ -448,30 +522,21 @@ class GoldPipeline:
                     "primary_pollutant": air.get("dominant_primary_pollutant"),
                     
                     # Combined indices
-                    "weather_comfort_score": round(weather_comfort, 1),
-                    "air_quality_score": round(air_quality_score, 1),
-                    "outdoor_activity_score": round(outdoor_score, 1),
-                    
+                    "weather_comfort_score": (
+                        round(weather_comfort, 1) if has_weather_comfort else None
+                    ),
+                    "air_quality_score": air_quality_score,
+                    "outdoor_activity_score": outdoor_score,
+
                     # Hour coverage
                     "weather_hours": weather.get("hours_covered", []),
                     "air_quality_hours": air.get("hours_covered", []),
-                    
+                    "weather_is_trusted": weather.get("is_trusted", False),
+                    "air_quality_is_trusted": air.get("is_trusted", False),
+
                     # Recommendations
-                    "outdoor_activity_recommendation": (
-                        "excellent" if outdoor_score >= 80 else
-                        "good" if outdoor_score >= 60 else
-                        "moderate" if outdoor_score >= 40 else
-                        "poor" if outdoor_score >= 20 else
-                        "avoid"
-                    ),
-                    
-                    # Health advisory
-                    "health_advisory": (
-                        "No restrictions" if air.get("max_aqi", 0) <= 50 else
-                        "Sensitive groups caution" if air.get("max_aqi", 0) <= 100 else
-                        "Limit outdoor activities" if air.get("max_aqi", 0) <= 150 else
-                        "Avoid outdoor activities"
-                    ),
+                    "outdoor_activity_recommendation": recommendation,
+                    "health_advisory": health_advisory,
                     
                     # Metadata
                     "aggregated_at": datetime.now().isoformat(),

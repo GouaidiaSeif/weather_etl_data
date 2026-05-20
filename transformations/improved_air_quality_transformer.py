@@ -10,8 +10,9 @@ FIXED v3:
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from utils.logger import get_logger
+from transformations.transformationscommon_cleaning import optional_float, optional_int
 from utils.timezone_utils import (
     PARIS_TZ,
     format_hour_paris,
@@ -40,6 +41,17 @@ class AirQualityTransformer:
                 (186, 304, 151, 200), (305, 604, 201, 300), (605, 1004, 301, 500)],
         "co": [(0, 4.4, 0, 50), (4.5, 9.4, 51, 100), (9.5, 12.4, 101, 150),
                (12.5, 15.4, 151, 200), (15.5, 30.4, 201, 300), (30.5, 50.4, 301, 500)],
+    }
+
+    POLLUTANT_RANGES = {
+        "pm25": (0, 1000),
+        "pm10": (0, 1000),
+        "no2": (0, 2000),
+        "o3": (0, 1000),
+        "co": (0, 100),
+        "so2": (0, 2000),
+        "no": (0, 5000),
+        "nh3": (0, 5000),
     }
 
     @staticmethod
@@ -80,20 +92,45 @@ class AirQualityTransformer:
         }
 
     @staticmethod
-    def _extract_paris_time(raw_record: Dict[str, Any], time_info: Dict[str, Any]) -> datetime:
+    def _validate_pollutant(name: str, value: Any) -> Optional[float]:
+        parsed = optional_float(value)
+        if parsed is None:
+            return None
+        if name in AirQualityTransformer.POLLUTANT_RANGES:
+            lo, hi = AirQualityTransformer.POLLUTANT_RANGES[name]
+            if not (lo <= parsed <= hi):
+                logger.warning(f"Pollutant {name}={parsed} outside range [{lo}, {hi}]")
+                return None
+        return parsed
+
+    @staticmethod
+    def _parse_aqi(raw_aqi: Any) -> Optional[int]:
+        if raw_aqi is None or raw_aqi == "":
+            return None
+        parsed = optional_int(raw_aqi)
+        if parsed is None or not (0 <= parsed <= 500):
+            logger.warning(f"Invalid AQI value: {raw_aqi}")
+            return None
+        return parsed
+
+    @staticmethod
+    def _extract_paris_time(
+        raw_record: Dict[str, Any], time_info: Dict[str, Any]
+    ) -> Tuple[datetime, str]:
         storage = raw_record.get("_storage", {})
         for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
             dt = parse_storage_timestamp(storage.get(key, ""))
             if dt is not None:
-                return dt.astimezone(PARIS_TZ)
+                return dt.astimezone(PARIS_TZ), "storage"
 
         if "v" in time_info:
             try:
-                return datetime.fromtimestamp(int(time_info["v"]), tz=timezone.utc).astimezone(PARIS_TZ)
+                dt = datetime.fromtimestamp(int(time_info["v"]), tz=timezone.utc).astimezone(PARIS_TZ)
+                return dt, "api_time"
             except (ValueError, TypeError):
                 pass
 
-        return datetime.now(timezone.utc).astimezone(PARIS_TZ)
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ), "fallback_now"
 
     @staticmethod
     def _get_primary_pollutant(iaqi: Dict[str, Any]) -> Optional[str]:
@@ -104,7 +141,7 @@ class AirQualityTransformer:
         
         for pol in pollutants:
             val = iaqi.get(pol, {}).get("v")
-            if val and val > max_aqi:
+            if val is not None and val > max_aqi:
                 max_aqi = val
                 primary = pol
         
@@ -156,35 +193,48 @@ class AirQualityTransformer:
             Dict with cleaned and standardized air quality data
         """
         data = raw_record.get("data", {})
+        if not data:
+            raise ValueError("Missing data section in air quality record")
+
         iaqi = data.get("iaqi", {})
         time_info = data.get("time", {})
         city_info = data.get("city", {})
         forecast = data.get("forecast", {})
-        
-        paris_dt = AirQualityTransformer._extract_paris_time(raw_record, time_info)
+
+        paris_dt, timestamp_source = AirQualityTransformer._extract_paris_time(
+            raw_record, time_info
+        )
+        if timestamp_source == "fallback_now":
+            raise ValueError(
+                "Unreliable timestamp: no storage metadata or API time in air quality record"
+            )
+
         timestamp = paris_dt.astimezone(timezone.utc).isoformat()
         hour = paris_hour(paris_dt)
         date_paris = paris_date_str(paris_dt)
-        
-        # City name
+
         if city_name:
             city = city_name.lower()
         else:
             city = raw_record.get("_storage", {}).get("city", "unknown")
-        
-        # AQI and alert level
-        aqi = data.get("aqi", 0)
-        alert_level = AirQualityTransformer.calculate_alert_level(aqi)
-        
-        # Extract pollutants (standard names)
-        pm25 = iaqi.get("pm25", {}).get("v")
-        pm10 = iaqi.get("pm10", {}).get("v")
-        no2 = iaqi.get("no2", {}).get("v")
-        o3 = iaqi.get("o3", {}).get("v")
-        co = iaqi.get("co", {}).get("v")
-        so2 = iaqi.get("so2", {}).get("v")
-        no = iaqi.get("no", {}).get("v")
-        nh3 = iaqi.get("nh3", {}).get("v")
+
+        aqi = AirQualityTransformer._parse_aqi(data.get("aqi"))
+        alert_level = (
+            AirQualityTransformer.calculate_alert_level(aqi) if aqi is not None else None
+        )
+
+        pm25 = AirQualityTransformer._validate_pollutant("pm25", iaqi.get("pm25", {}).get("v"))
+        pm10 = AirQualityTransformer._validate_pollutant("pm10", iaqi.get("pm10", {}).get("v"))
+        if pm25 is not None and pm10 is not None and pm25 > pm10:
+            logger.warning(f"PM2.5 ({pm25}) > PM10 ({pm10}); nulling pm25")
+            pm25 = None
+
+        no2 = AirQualityTransformer._validate_pollutant("no2", iaqi.get("no2", {}).get("v"))
+        o3 = AirQualityTransformer._validate_pollutant("o3", iaqi.get("o3", {}).get("v"))
+        co = AirQualityTransformer._validate_pollutant("co", iaqi.get("co", {}).get("v"))
+        so2 = AirQualityTransformer._validate_pollutant("so2", iaqi.get("so2", {}).get("v"))
+        no = AirQualityTransformer._validate_pollutant("no", iaqi.get("no", {}).get("v"))
+        nh3 = AirQualityTransformer._validate_pollutant("nh3", iaqi.get("nh3", {}).get("v"))
         
         # Extract weather-related fields from iaqi (short names)
         temp = iaqi.get("t", {}).get("v")  # temperature
@@ -221,9 +271,9 @@ class AirQualityTransformer:
             "station_url": city_info.get("url"),
             
             # AQI metrics
-            "aqi": int(aqi) if aqi else 0,
+            "aqi": aqi,
             "alert_level": alert_level,
-            "aqi_category": alert_level.replace("_", " "),
+            "aqi_category": alert_level.replace("_", " ") if alert_level else None,
             "dominant_pollutant_api": data.get("dominentpol"),
             
             # Individual pollutants (µg/m³ except CO in mg/m³)
@@ -250,7 +300,11 @@ class AirQualityTransformer:
             "dew_point_celsius": dew_point,
             
             # Health information
-            "health_risk": AirQualityTransformer.calculate_health_risk_score(aqi, alert_level),
+            "health_risk": (
+                AirQualityTransformer.calculate_health_risk_score(aqi, alert_level)
+                if aqi is not None and alert_level is not None
+                else None
+            ),
             
             # Forecast data
             "uvi_forecast_daily": uvi_forecast,
@@ -263,10 +317,14 @@ class AirQualityTransformer:
         # Calculate data quality
         numeric_fields = ["pm25", "pm10", "no2", "o3", "co", "so2", "no", "nh3"]
         available_pollutants = sum(1 for p in numeric_fields if transformed[p] is not None)
+        missing = [p for p in numeric_fields if transformed[p] is None]
         transformed["_data_quality"] = {
             "completeness_score": round(available_pollutants / len(numeric_fields), 2),
             "available_pollutants": available_pollutants,
             "total_pollutants": len(numeric_fields),
+            "aqi_present": aqi is not None,
+            "timestamp_source": timestamp_source,
+            "missing_pollutants": missing,
         }
         
         # Add lineage tracking

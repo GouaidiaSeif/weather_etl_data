@@ -50,6 +50,12 @@ class Settings:
     mongodb_username: Optional[str] = None
     mongodb_password: Optional[str] = None
     mongodb_auth_source: str = "weather_etl"
+
+    # Discord webhooks (optional — alerts skipped when all unset)
+    discord_webhook_url: Optional[str] = None
+    discord_webhook_immediate: Optional[str] = None
+    discord_webhook_digest: Optional[str] = None
+    discord_webhook_ops: Optional[str] = None
     
     @classmethod
     def from_env(cls) -> "Settings":
@@ -110,6 +116,10 @@ class Settings:
             mongodb_username=mongodb_username,
             mongodb_password=mongodb_password,
             mongodb_auth_source=mongodb_auth_source,
+            discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL"),
+            discord_webhook_immediate=os.getenv("DISCORD_WEBHOOK_IMMEDIATE"),
+            discord_webhook_digest=os.getenv("DISCORD_WEBHOOK_DIGEST"),
+            discord_webhook_ops=os.getenv("DISCORD_WEBHOOK_OPS"),
         )
 
 

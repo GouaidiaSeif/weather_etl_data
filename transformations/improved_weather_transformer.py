@@ -9,8 +9,9 @@ FIXED v3:
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from utils.logger import get_logger
+from transformations.transformationscommon_cleaning import optional_float
 from utils.timezone_utils import (
     PARIS_TZ,
     format_hour_paris,
@@ -40,11 +41,15 @@ class WeatherTransformer:
     }
 
     @staticmethod
-    def _validate_field(name: str, value: Optional[float], default: Any = None) -> Any:
+    def _validate_field(name: str, value: Any, default: Any = None) -> Any:
         """Validate a field value is within physical limits."""
-        if value is None:
+        if value is None or value == "":
             return default
-        
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return default
+
         if name in WeatherTransformer.VALID_RANGES:
             min_val, max_val = WeatherTransformer.VALID_RANGES[name]
             if not (min_val <= value <= max_val):
@@ -53,19 +58,24 @@ class WeatherTransformer:
         return value
 
     @staticmethod
-    def _extract_paris_time(raw_record: Dict[str, Any], hourly: Dict[str, Any]) -> datetime:
+    def _extract_paris_time(
+        raw_record: Dict[str, Any], hourly: Dict[str, Any]
+    ) -> Tuple[datetime, str]:
         """Resolve event time in Europe/Paris from storage metadata or hourly.dt."""
         storage = raw_record.get("_storage", {})
         for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
             dt = parse_storage_timestamp(storage.get(key, ""))
             if dt is not None:
-                return dt.astimezone(PARIS_TZ)
+                return dt.astimezone(PARIS_TZ), "storage"
 
         dt_value = hourly.get("dt")
         if dt_value:
-            return datetime.fromtimestamp(int(dt_value), tz=timezone.utc).astimezone(PARIS_TZ)
+            return (
+                datetime.fromtimestamp(int(dt_value), tz=timezone.utc).astimezone(PARIS_TZ),
+                "hourly_dt",
+            )
 
-        return datetime.now(timezone.utc).astimezone(PARIS_TZ)
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ), "fallback_now"
 
     @staticmethod
     def _calculate_heat_index(temp: float, humidity: float) -> Optional[float]:
@@ -122,19 +132,23 @@ class WeatherTransformer:
         return "normal"
 
     @staticmethod
-    def _calculate_data_quality(record: Dict[str, Any]) -> Dict[str, Any]:
+    def _calculate_data_quality(
+        record: Dict[str, Any], timestamp_source: str
+    ) -> Dict[str, Any]:
         """Calculate data quality metrics for the record."""
-        # Count core weather fields
         core_fields = [
             "temperature_celsius", "humidity_percent", "pressure_hpa",
-            "wind_speed_mps", "cloud_coverage_percent"
+            "wind_speed_mps", "cloud_coverage_percent",
         ]
         available = sum(1 for f in core_fields if record.get(f) is not None)
-        
+        missing = [f for f in core_fields if record.get(f) is None]
+
         return {
             "completeness_score": round(available / len(core_fields), 2),
             "available_core_fields": available,
-            "total_core_fields": len(core_fields)
+            "total_core_fields": len(core_fields),
+            "timestamp_source": timestamp_source,
+            "missing_core_fields": missing,
         }
 
     @staticmethod
@@ -161,7 +175,14 @@ class WeatherTransformer:
         weather_list = hourly.get("weather", [])
         weather = weather_list[0] if weather_list else {}
         
-        paris_dt = WeatherTransformer._extract_paris_time(raw_record, hourly)
+        paris_dt, timestamp_source = WeatherTransformer._extract_paris_time(
+            raw_record, hourly
+        )
+        if timestamp_source == "fallback_now":
+            raise ValueError(
+                "Unreliable timestamp: no storage metadata or hourly.dt in weather record"
+            )
+
         timestamp = paris_dt.astimezone(timezone.utc).isoformat()
         hour = paris_hour(paris_dt)
         date_paris = paris_date_str(paris_dt)
@@ -223,8 +244,21 @@ class WeatherTransformer:
             hourly.get("clouds"),
             default=None
         )
-        visibility = hourly.get("visibility")
-        pop = hourly.get("pop", 0)
+        visibility = WeatherTransformer._validate_field(
+            "visibility_m", hourly.get("visibility"), default=None
+        )
+        raw_pop = hourly.get("pop")
+        if raw_pop is None:
+            pop_percent = None
+        else:
+            pop_val = optional_float(raw_pop)
+            if pop_val is not None:
+                pop_scaled = pop_val * 100 if pop_val <= 1 else pop_val
+                pop_percent = WeatherTransformer._validate_field(
+                    "pop_percent", pop_scaled, default=None
+                )
+            else:
+                pop_percent = None
         
         # Build transformed record with ALL available fields
         transformed = {
@@ -263,16 +297,24 @@ class WeatherTransformer:
             "weather_id": weather.get("id"),
             
             # Precipitation
-            "precipitation_probability_percent": int(pop * 100) if pop is not None else 0,
-            
+            "precipitation_probability_percent": (
+                int(pop_percent) if pop_percent is not None else None
+            ),
+
             # UV index
             "uvi": round(uvi, 2) if uvi is not None else None,
             "uvi_category": WeatherTransformer._categorize_uvi(uvi) if uvi is not None else None,
-            
-            # Derived metrics
-            "heat_index_celsius": WeatherTransformer._calculate_heat_index(temp or 0, humidity or 0),
-            "weather_severity": WeatherTransformer._classify_weather_severity(
-                temp or 0, wind_speed or 0, wind_gust, uvi
+
+            # Derived metrics (only when inputs are present)
+            "heat_index_celsius": (
+                WeatherTransformer._calculate_heat_index(temp, humidity)
+                if temp is not None and humidity is not None
+                else None
+            ),
+            "weather_severity": (
+                WeatherTransformer._classify_weather_severity(temp, wind_speed, wind_gust, uvi)
+                if temp is not None and wind_speed is not None
+                else None
             ),
             
             # Location metadata
@@ -282,8 +324,9 @@ class WeatherTransformer:
             "timezone_offset_seconds": raw_record.get("timezone_offset"),
         }
         
-        # Add data quality metrics
-        transformed["_data_quality"] = WeatherTransformer._calculate_data_quality(transformed)
+        transformed["_data_quality"] = WeatherTransformer._calculate_data_quality(
+            transformed, timestamp_source
+        )
         
         # Add lineage tracking
         transformed["_lineage"] = {
