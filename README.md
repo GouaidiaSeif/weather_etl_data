@@ -18,11 +18,12 @@ Toutes les heures métier sont alignées sur **`Europe/Paris`**.
 8. [Configuration (.env)](#configuration-env)
 9. [Guide d'utilisation](#guide-dutilisation)
 10. [Stockage MongoDB & MinIO](#stockage-mongodb--minio)
-11. [Machine Learning](#machine-learning)
-12. [Villes couvertes](#villes-couvertes)
-13. [Structure du projet](#structure-du-projet)
-14. [Dépannage](#dépannage)
-15. [Licence](#licence)
+11. [Référence des schémas de données](#référence-des-schémas-de-données)
+12. [Machine Learning](#machine-learning)
+13. [Villes couvertes](#villes-couvertes)
+14. [Structure du projet](#structure-du-projet)
+15. [Dépannage](#dépannage)
+16. [Licence](#licence)
 
 ---
 
@@ -651,6 +652,445 @@ db.gold_air_quality_daily.find({
 // Alertes déjà envoyées aujourd'hui
 db.alert_notifications.find({ alert_key: /^digest:/ })
 ```
+
+---
+
+## Référence des schémas de données
+
+Documentation **champ par champ** : API brute → Bronze → Silver (`cleaned_data`) → Gold (`analytics`) → MongoDB.
+
+### Schéma global (lignage)
+
+```mermaid
+flowchart LR
+  subgraph bronze [Bronze JSON]
+    OW_FILE[weather_HH_raw.json<br/>hourly + _storage]
+    AQ_FILE[air_quality_HH_raw.json<br/>data + _storage]
+  end
+  subgraph silver [MongoDB Silver]
+    SW[silver_weather.cleaned_data]
+    SA[silver_air_quality.cleaned_data]
+  end
+  subgraph gold [MongoDB Gold analytics]
+    GW[gold_weather_daily]
+    GA[gold_air_quality_daily]
+    GC[gold_daily]
+  end
+  OW_FILE --> SW --> GW --> GC
+  AQ_FILE --> SA --> GA --> GC
+```
+
+| Couche | Granularité | Clé |
+|--------|-------------|-----|
+| Bronze | 1 fichier / ville / **heure Paris** | Chemin Hive + `_storage` |
+| Silver | 1 doc / ville / **heure** | `city` + `date_paris` + `hour_paris` |
+| Gold | 1 doc / ville / **jour** | `city` + `date` |
+
+---
+
+### MongoDB — diagramme des collections
+
+```mermaid
+erDiagram
+  silver_weather ||--o{ gold_weather_daily : agrège
+  silver_air_quality ||--o{ gold_air_quality_daily : agrège
+  gold_weather_daily ||--o{ gold_daily : joint
+  gold_air_quality_daily ||--o{ gold_daily : joint
+  silver_weather {
+    string city PK
+    string date_paris PK
+    int hour_paris PK
+    object cleaned_data
+    datetime etl_timestamp
+  }
+  silver_air_quality {
+    string city PK
+    string date_paris PK
+    int hour_paris PK
+    object cleaned_data
+    datetime etl_timestamp
+  }
+  gold_weather_daily {
+    string city PK
+    string date PK
+    object analytics
+  }
+  gold_air_quality_daily {
+    string city PK
+    string date PK
+    object analytics
+  }
+  gold_daily {
+    string city PK
+    string date PK
+    object analytics
+  }
+  alert_notifications {
+    string alert_key PK
+    string channel
+    datetime sent_at
+  }
+```
+
+**Index uniques :** `(city, date_paris, hour_paris)` sur silver ; `(city, date)` sur gold ; `alert_key` sur alertes.
+
+---
+
+### Enveloppes MongoDB (racine des documents)
+
+#### `silver_weather` / `silver_air_quality`
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `_id` | ObjectId | Auto |
+| `city` | string | `paris`, … — **clé** |
+| `date_paris` | string | `YYYY-MM-DD` Paris — **clé** |
+| `hour` | int | = `hour_paris` |
+| `hour_paris` | int | 0–23 — **clé** |
+| `timestamp_utc` | string | Copie ISO UTC |
+| `timestamp_paris` | string | Copie ISO Paris |
+| `datetime` | null \| string | Souvent null |
+| `cleaned_data` | object | **Schéma Silver complet** (ci-dessous) |
+| `etl_timestamp` | datetime | Upsert Mongo (UTC) |
+
+#### `gold_weather_daily` / `gold_air_quality_daily` / `gold_daily`
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `_id` | ObjectId | Auto |
+| `city` | string | **Clé** |
+| `date` | string | Jour Paris `YYYY-MM-DD` — **clé** |
+| `analytics` | object | **Schéma Gold complet** (ci-dessous) |
+| `etl_timestamp` | datetime | Upsert Gold (UTC) |
+
+#### `alert_notifications`
+
+| Champ | Type | Exemple |
+|-------|------|---------|
+| `alert_key` | string | `immediate:aqi:lyon:2026-05-20:10:level:unhealthy` |
+| `channel` | string | `immediate` \| `digest` \| `ops` |
+| `sent_at` | datetime | Premier envoi Discord réussi |
+
+---
+
+## Bronze — valeurs brutes des API
+
+JSON **non transformé** + bloc `_storage` ajouté à l’écriture (`hive_storage.py`).
+
+### OpenWeather One Call 3.0
+
+**Appel :** `GET /data/3.0/onecall?lat&lon&exclude=minutely,daily,alerts&units=metric`
+
+#### Réponse API en mémoire (avant découpage)
+
+| Champ racine | Type | Description |
+|--------------|------|-------------|
+| `lat`, `lon` | float | Coordonnées requête |
+| `timezone` | string | Ex. `Europe/Paris` |
+| `timezone_offset` | int | Secondes |
+| `current` | object | Instant présent (non utilisé pour silver horaire) |
+| `hourly` | **array** | ~48 objets, un par heure UTC |
+
+#### Un élément de `hourly[]` (noms API exacts)
+
+| Champ API | Type | Unité (metric) | Utilisé Silver |
+|-----------|------|----------------|----------------|
+| `dt` | int | Unix UTC | Oui → heure Paris |
+| `temp` | float | °C | → `temperature_celsius` |
+| `feels_like` | float | °C | → `feels_like_celsius` |
+| `pressure` | int | hPa | → `pressure_hpa` |
+| `humidity` | int | % | → `humidity_percent` |
+| `dew_point` | float | °C | → `dew_point_celsius` |
+| `uvi` | float | index | → `uvi` |
+| `clouds` | int | % | → `cloud_coverage_percent` |
+| `visibility` | int | m | → `visibility_m` |
+| `wind_speed` | float | m/s | → `wind_speed_mps` |
+| `wind_deg` | int | ° | → `wind_direction_deg` |
+| `wind_gust` | float | m/s | → `wind_gust_mps` |
+| `pop` | float | 0–1 | → `precipitation_probability_percent` (×100) |
+| `rain` | object | mm/h `1h` | Stocké brut, non mappé Silver |
+| `snow` | object | mm/h `1h` | Stocké brut, non mappé Silver |
+| `weather` | array | | → `weather_main`, etc. |
+
+**`weather[0]` :** `id` (int), `main` (string), `description` (string), `icon` (string).
+
+#### Fichier Bronze `weather_14_raw.json`
+
+| Champ fichier | Contenu |
+|---------------|---------|
+| `hourly` | **Un seul** objet (pas le tableau complet API) |
+| `lat`, `lon`, `timezone`, `timezone_offset` | Copiés de la réponse |
+| `_storage` | Métadonnées ETL (tableau ci-dessous) |
+
+| `_storage.*` | Description |
+|--------------|-------------|
+| `saved_at` | ISO UTC écriture |
+| `filepath` | Clé MinIO |
+| `api_source` | `openweather` |
+| `city` | Nom ville |
+| `hour_timestamp_paris` | **Priorité** timestamp Silver |
+| `hour_timestamp_utc` | Même slot UTC |
+| `data_type` | `hourly` |
+
+---
+
+### AQICN WAQI
+
+**Appel :** `GET https://api.waqi.info/feed/geo:{lat};{lon}/?token=...`
+
+#### Racine réponse
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `status` | string | `ok` |
+| `data` | object | Mesures (ci-dessous) |
+
+#### `data` — champs API
+
+| Champ API | Type | Description |
+|-----------|------|-------------|
+| `aqi` | number | Indice global station |
+| `idx` | number | ID WAQI |
+| `dominentpol` | string | Polluant dominant (orthographe API) |
+| `time.v` | int | Unix UTC |
+| `time.s`, `time.iso`, `time.tz` | string | Texte / fuseau |
+| `city.name` | string | Libellé station |
+| `city.geo` | [lat, lon] | Coordonnées |
+| `city.url` | string | Page WAQI |
+| `iaqi` | object | Map `polluant → { v, t? }` |
+| `attributions` | array | Sources |
+| `forecast.daily.uvi` | array | `{ day, avg, min, max }` |
+
+#### Clés `data.iaqi` courantes
+
+| Clé | Signification | Unité |
+|-----|---------------|-------|
+| `pm25`, `pm10`, `no2`, `o3`, `so2`, `no`, `nh3` | Polluants | µg/m³ (CO en mg/m³) |
+| `t`, `h`, `p`, `w`, `wg`, `dew` | Météo station | °C, %, hPa, m/s |
+
+#### Fichier Bronze `air_quality_14_raw.json`
+
+Réponse AQICN **complète** + `_storage` (`api_source`: `aqicn`).
+
+---
+
+## Silver — `cleaned_data` (référence complète)
+
+### Météo — tous les champs + origine
+
+| Champ Silver | Type | Origine Bronze | Validation |
+|--------------|------|----------------|------------|
+| `timestamp_utc` | string | `_storage` ou `hourly.dt` | — |
+| `timestamp_paris` | string | Paris | — |
+| `date_paris` | string | Calculé | — |
+| `hour`, `hour_paris` | int | Paris | — |
+| `hour_formatted` | string | `HH:00` | — |
+| `city` | string | ETL / `_storage` | lowercase |
+| `temperature_celsius` | float\|null | `hourly.temp` | [-100,100] |
+| `feels_like_celsius` | float\|null | `hourly.feels_like` | idem |
+| `dew_point_celsius` | float\|null | `hourly.dew_point` | [-100,50] |
+| `humidity_percent` | int\|null | `hourly.humidity` | [0,100] |
+| `pressure_hpa` | int\|null | `hourly.pressure` | [800,1100] |
+| `wind_speed_mps` | float\|null | `hourly.wind_speed` | [0,150] |
+| `wind_gust_mps` | float\|null | `hourly.wind_gust` | [0,150] |
+| `wind_direction_deg` | int\|null | `hourly.wind_deg` | [0,360] |
+| `wind_direction_cardinal` | string\|null | Calcul 16 points | — |
+| `cloud_coverage_percent` | int\|null | `hourly.clouds` | [0,100] |
+| `visibility_m` | int\|null | `hourly.visibility` | [0,100000] |
+| `weather_main` | string | `weather[0].main` | lower |
+| `weather_description` | string | `weather[0].description` | lower |
+| `weather_icon` | string\|null | `weather[0].icon` | — |
+| `weather_id` | int\|null | `weather[0].id` | — |
+| `precipitation_probability_percent` | int\|null | `hourly.pop` | [0,100] |
+| `uvi` | float\|null | `hourly.uvi` | [0,20] |
+| `uvi_category` | string\|null | Dérivé UV | low…extreme |
+| `heat_index_celsius` | float\|null | Dérivé T+RH | si T≥27,RH≥40 |
+| `weather_severity` | string\|null | Score T, vent, UV | normal…extreme |
+| `latitude` | float | `lat` | — |
+| `longitude` | float | `lon` | — |
+| `timezone` | string | `timezone` | — |
+| `timezone_offset_seconds` | int | `timezone_offset` | — |
+
+**`_data_quality` :** `completeness_score`, `available_core_fields`, `total_core_fields` (5), `timestamp_source` (`storage`|`hourly_dt`), `missing_core_fields[]`.
+
+**`_lineage` :** `transformer`, `version`, `transformed_at`, `raw_source`.
+
+**Rejet :** si `timestamp_source` = `fallback_now` → pas d’insert.
+
+---
+
+### Air — tous les champs + origine
+
+| Champ Silver | Type | Origine Bronze | Validation |
+|--------------|------|----------------|------------|
+| `timestamp_*`, `date_paris`, `hour*` | | `time.v` / `_storage` | rejet si fallback |
+| `city` | string | ETL | |
+| `station_id` | int\|null | `data.idx` | |
+| `station_name` | string\|null | `data.city.name` | |
+| `station_coordinates` | {lat,lon} | `data.city.geo` | |
+| `station_url` | string\|null | `data.city.url` | |
+| `aqi` | int\|null | `data.aqi` | [0,500], jamais 0 par défaut |
+| `alert_level` | string\|null | Seuils EPA | si AQI présent |
+| `aqi_category` | string\|null | Libellé alerte | |
+| `dominant_pollutant_api` | string\|null | `data.dominentpol` | |
+| `pm25`…`nh3` | float\|null | `iaqi.*.v` | plages par polluant |
+| `primary_pollutant` | string\|null | Max `iaqi` conc. | |
+| `pm25_to_pm10_ratio` | float\|null | Calcul | si pm10>0 |
+| `no2_to_o3_ratio` | float\|null | Calcul | si o3>0 |
+| `temperature_celsius` | float\|null | `iaqi.t.v` | |
+| `humidity_percent` | float\|null | `iaqi.h.v` | |
+| `pressure_hpa` | float\|null | `iaqi.p.v` | |
+| `wind_speed_mps` | float\|null | `iaqi.w.v` | |
+| `wind_gust_mps` | float\|null | `iaqi.wg.v` | |
+| `dew_point_celsius` | float\|null | `iaqi.dew.v` | |
+| `health_risk` | object\|null | Calcul AQI | voir tableau |
+| `uvi_forecast_daily` | array | `forecast.daily.uvi` | |
+| `station_timezone` | string\|null | `data.time.tz` | |
+| `attributions` | string[] | `data.attributions[].name` | |
+
+**`health_risk` :** `score`, `level`, `outdoor_activity`, `sensitive_groups`, `mask_recommended`.
+
+**`alert_level` selon AQI :** 0–50 good, 51–100 moderate, 101–150 unhealthy_sensitive, 151–200 unhealthy, 201–300 very_unhealthy, 301+ hazardous.
+
+**`_data_quality` :** `completeness_score`, `available_pollutants`, `total_pollutants` (8), `aqi_present`, `timestamp_source`, `missing_pollutants[]`.
+
+**Règle :** si `pm25 > pm10` → `pm25` = null.
+
+---
+
+## Gold — `analytics` (référence complète)
+
+Entrée : tous les `cleaned_data` silver d’un `(city, date_paris)` ; dédup par `hour_paris`.
+
+### Règles d’agrégation communes
+
+| Règle | Détail |
+|-------|--------|
+| Moyennes / min / max | Sur heures où la métrique ≠ null |
+| `*_trend` | 1ère vs 2ème moitié du jour |
+| `*_volatility` | Écart-type (≥2 points) |
+| `is_trusted` | ≥18 h avec métrique ET `data_quality_score` ≥ 0.7 |
+
+---
+
+### `gold_weather_daily.analytics`
+
+| Champ | Type | Calcul |
+|-------|------|--------|
+| `city`, `date` | string | Clés |
+| `records_count` | int | Heures après dédup |
+| `hours_covered` | int[] | Liste heures |
+| `hourly_data[]` | object[] | `{hour, hour_formatted, temperature, humidity, wind_speed, weather, uvi}` |
+| `avg_temperature`, `min_temperature`, `max_temperature` | float | Temp |
+| `temp_range` | float | max−min |
+| `temp_volatility`, `temp_trend` | float\|null, string | |
+| `avg_feels_like`, `avg_dew_point` | float\|null | |
+| `avg_humidity`, `min_humidity`, `max_humidity`, `humidity_trend` | | |
+| `avg_pressure`, `pressure_trend` | | |
+| `avg_wind_speed`, `max_wind_speed`, `max_wind_gust` | | |
+| `wind_gust_present` | bool | |
+| `avg_cloud_coverage`, `avg_visibility`, `min_visibility` | | |
+| `max_uvi`, `avg_uvi`, `uvi_present`, `uvi_categories` | | |
+| `max_precipitation_probability` | int | |
+| `precipitation_detected` | bool | proba > 0 |
+| `dominant_weather_condition` | string | mode `weather_main` |
+| `weather_conditions` | string[] | uniques |
+| `max_severity` | string\|null | pire sévérité |
+| `comfort_index` | object\|null | `{score, level, temp_comfort, humidity_comfort}` |
+| `data_quality_score` | float | moy. silver |
+| `hours_with_metric`, `hours_total`, `coverage_pct`, `is_trusted` | | confiance |
+| `aggregated_at` | string | |
+| `extreme_weather_flag` | bool | T≥35 ou T≤−10 ou vent≥20 ou severity severe/extreme |
+
+---
+
+### `gold_air_quality_daily.analytics`
+
+| Champ | Type | Calcul |
+|-------|------|--------|
+| `city`, `date`, `records_count`, `hours_covered` | | |
+| `hourly_data[]` | | `{hour, hour_formatted, aqi, alert_level, primary_pollutant, pm25, pm10}` |
+| `avg_aqi`, `min_aqi`, `max_aqi` | | |
+| `aqi_volatility`, `aqi_trend` | | |
+| `max_alert_level` | string | pire EPA du jour |
+| `alert_levels_distribution` | object | comptage par niveau |
+| `unhealthy_hours_count` | int | aqi > 100 |
+| `unhealthy_hours_percent` | float | |
+| `avg_pm25` … `avg_so2`, `max_pm25`, `max_pm10` | float\|null | |
+| `dominant_primary_pollutant`, `primary_pollutants` | | |
+| `avg_health_risk_score`, `max_health_risk_score` | | |
+| `avg_temperature`, `avg_humidity`, `avg_pressure`, `avg_wind_speed` | | depuis iaqi AQICN |
+| `uvi_forecast_daily` | array\|null | 1er silver du jour |
+| `data_quality_score`, `hours_*`, `is_trusted` | | |
+| `aggregated_at` | string | |
+| `significant_pollution_flag` | bool | max_aqi≥150 OU ≥4 h unhealthy |
+
+---
+
+### `gold_daily.analytics` (combiné journalier)
+
+| Champ | Type | Source |
+|-------|------|--------|
+| `avg_temperature`, `temp_trend`, `max_wind_speed`, `precipitation_detected`, `max_uvi` | | gold météo |
+| `avg_aqi`, `aqi_trend`, `max_alert_level`, `unhealthy_hours_count`, `primary_pollutant` | | gold air |
+| `weather_comfort_score` | float\|null | `comfort_index.score` |
+| `air_quality_score` | float\|null | `100 - avg_aqi/5` |
+| `outdoor_activity_score` | float\|null | 40% météo + 60% air |
+| `weather_hours`, `air_quality_hours` | int[] | couverture |
+| `weather_is_trusted`, `air_quality_is_trusted` | bool | |
+| `outdoor_activity_recommendation` | string | excellent…avoid / insufficient_data |
+| `health_advisory` | string | selon max_aqi |
+| `aggregated_at` | string | |
+
+---
+
+### Exemples JSON MongoDB
+
+**Silver (extrait) :**
+
+```json
+{
+  "city": "paris",
+  "date_paris": "2026-05-20",
+  "hour_paris": 14,
+  "cleaned_data": {
+    "temperature_celsius": 22.5,
+    "humidity_percent": 55,
+    "weather_severity": "normal",
+    "_data_quality": { "completeness_score": 1.0, "timestamp_source": "storage" },
+    "_lineage": { "transformer": "WeatherTransformer", "version": "3.0", "raw_source": "raw/.../weather_14_raw.json" }
+  },
+  "etl_timestamp": "2026-05-20T14:05:13Z"
+}
+```
+
+**Gold air (extrait `analytics`) :**
+
+```json
+{
+  "city": "lyon",
+  "date": "2026-05-20",
+  "avg_aqi": 62.5,
+  "max_aqi": 118,
+  "significant_pollution_flag": false,
+  "is_trusted": true,
+  "hourly_data": [{ "hour": 8, "aqi": 45, "alert_level": "good", "pm25": 12.0 }]
+}
+```
+
+---
+
+### Matrice : où vit chaque donnée
+
+| Métrique | API brute | Bronze | Silver | Gold |
+|----------|-----------|--------|--------|------|
+| Température | `hourly.temp` | `hourly.temp` | `temperature_celsius` | `avg_temperature`, `hourly_data[].temperature` |
+| AQI | `data.aqi` | `data.aqi` | `aqi` | `avg_aqi`, `max_aqi` |
+| PM2.5 | `iaqi.pm25.v` | idem | `pm25` | `avg_pm25`, `max_pm25` |
+| Sévérité météo | — | — | `weather_severity` | `max_severity`, `extreme_weather_flag` |
+| Alerte EPA | — | — | `alert_level` | `max_alert_level` |
+| Sortie / santé | — | — | `health_risk` | `outdoor_activity_score`, `health_advisory` |
+| Heure métier | `dt` / `time.v` | `_storage.hour_timestamp_paris` | `hour_paris` | `hours_covered` |
 
 ---
 
