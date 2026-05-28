@@ -36,11 +36,19 @@ class Settings:
     data_processed_path: Path
     data_silver_path: Path
     data_gold_path: Path
-    log_path: Path = field(default_factory=lambda: Path("data/logs"))
-    storage_backend: str = "local"
+    log_path: Path = field(default_factory=lambda: Path("logs"))
+    storage_backend: str = "minio"
     log_level: str = "INFO"
     request_timeout: int = 30
     max_retries: int = 3
+    local_timezone: str = "Europe/Paris"
+
+    # MinIO settings
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "weather-etl"
+    minio_secure: bool = False
     
     # MongoDB settings
     mongodb_uri: Optional[str] = None
@@ -93,7 +101,12 @@ class Settings:
         mongodb_auth_source = os.getenv("MONGODB_AUTH_SOURCE", "weather_etl")
         
         data_base = Path(os.getenv("DATA_BASE_PATH", project_root / "data"))
-        storage_backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+        storage_backend = os.getenv("STORAGE_BACKEND", "minio").strip().lower()
+        if storage_backend != "minio":
+            raise ValueError(
+                "Only MinIO storage backend is supported in this project now. "
+                "Set STORAGE_BACKEND=minio."
+            )
 
         return cls(
             openweather_api_key=openweather_key,
@@ -103,11 +116,17 @@ class Settings:
             data_processed_path=Path(os.getenv("DATA_PROCESSED_PATH", data_base / "processed")),
             data_silver_path=Path(os.getenv("DATA_SILVER_PATH", data_base / "silver")),
             data_gold_path=Path(os.getenv("DATA_GOLD_PATH", data_base / "gold")),
-            log_path=Path(os.getenv("LOG_PATH", data_base / "logs")),
+            log_path=Path(os.getenv("LOG_PATH", "logs")),
             storage_backend=storage_backend,
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             request_timeout=int(os.getenv("REQUEST_TIMEOUT", "30")),
             max_retries=int(os.getenv("MAX_RETRIES", "3")),
+            local_timezone=os.getenv("LOCAL_TIMEZONE", "Europe/Paris"),
+            minio_endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
+            minio_access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
+            minio_secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
+            minio_bucket=os.getenv("MINIO_BUCKET", "weather-etl"),
+            minio_secure=os.getenv("MINIO_SECURE", "false").lower() in ("1", "true", "yes"),
             # MongoDB settings
             mongodb_uri=mongodb_uri,
             mongodb_host=mongodb_host,

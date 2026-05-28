@@ -17,7 +17,7 @@ wait_for() {
   exit 1
 }
 
-if [ "${STORAGE_BACKEND:-local}" = "minio" ]; then
+if [ "${STORAGE_BACKEND:-minio}" = "minio" ]; then
   MINIO_HOST="${MINIO_ENDPOINT%%:*}"
   MINIO_PORT="${MINIO_ENDPOINT##*:}"
   wait_for "${MINIO_HOST}" "${MINIO_PORT}" "MinIO"

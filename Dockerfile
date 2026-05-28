@@ -18,4 +18,4 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
-CMD ["python", "scheduler.py"]
+CMD ["python", "transformations/pipline_final.py"]

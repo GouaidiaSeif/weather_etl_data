@@ -188,29 +188,31 @@ class MinioDataStore(DataStore):
 
 
 def create_raw_store(settings: Any) -> DataStore:
-    """Build object storage for the bronze/raw layer only (MinIO or local)."""
+    """Build object storage for the bronze/raw layer (MinIO only)."""
     return create_data_store(settings)
 
 
 def create_data_store(settings: Any) -> DataStore:
     """Build a DataStore from application settings."""
-    backend = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+    backend = os.getenv("STORAGE_BACKEND", "minio").strip().lower()
 
-    if backend == "minio":
-        endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-        access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-        secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-        bucket = os.getenv("MINIO_BUCKET", "weather-etl")
-        secure = os.getenv("MINIO_SECURE", "false").lower() in ("1", "true", "yes")
-        store: DataStore = MinioDataStore(
-            endpoint=endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
-            bucket=bucket,
-            secure=secure,
+    if backend != "minio":
+        raise ValueError(
+            f"Unsupported STORAGE_BACKEND='{backend}'. "
+            "Only 'minio' is allowed."
         )
-    else:
-        store = LocalDataStore(settings.data_base_path)
+    endpoint = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+    access_key = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+    secret_key = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+    bucket = os.getenv("MINIO_BUCKET", "weather-etl")
+    secure = os.getenv("MINIO_SECURE", "false").lower() in ("1", "true", "yes")
+    store: DataStore = MinioDataStore(
+        endpoint=endpoint,
+        access_key=access_key,
+        secret_key=secret_key,
+        bucket=bucket,
+        secure=secure,
+    )
 
     store.ensure_ready()
     return store

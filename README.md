@@ -41,7 +41,7 @@ flowchart TB
   end
 
   subgraph p2 [Phase 2 — Bronze]
-    BR[(MinIO / disque<br/>JSON bruts + _storage)]
+    BR[(MinIO<br/>JSON bruts + _storage)]
   end
 
   subgraph p3 [Phase 3 — Silver]
@@ -86,12 +86,12 @@ flowchart TB
 
 | Couche | Contenu | Où c'est stocké |
 |--------|---------|-----------------|
-| **Bronze** | Réponse API **non modifiée** + métadonnées `_storage` | MinIO `raw/…` ou `data/raw/` |
+| **Bronze** | Réponse API **non modifiée** + métadonnées `_storage` | MinIO `raw/…` |
 | **Silver** | 1 document / ville / heure Paris, champs typés et validés | MongoDB |
 | **Gold** | 1 document / ville / jour Paris, KPIs + confiance | MongoDB |
 | **Alertes** | Historique d'envoi (anti-spam) | MongoDB `alert_notifications` |
 
-**Planification** : `scheduler.py` exécute le pipeline à **minute 5** de chaque heure (`Europe/Paris`), plus un run au démarrage. Point d'entrée : `transformations/pipline_final.py`.
+**Planification** : Airflow exécute le pipeline à **minute 5** de chaque heure (`Europe/Paris`). Point d'entrée métier : `transformations/pipline_final.py`.
 
 ---
 
@@ -105,7 +105,7 @@ cd weather_etl_v2
 cp .env.example .env
 # Éditer .env : OPENWEATHER_API_KEY, AQICN_API_KEY, optionnel Discord
 docker compose up -d --build
-docker compose logs -f etl
+docker compose logs -f airflow-scheduler
 ```
 
 ### Local
@@ -115,7 +115,6 @@ python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-python test_setup.py
 python transformations/pipline_final.py
 ```
 
@@ -138,7 +137,7 @@ Principe **extract-first** : toutes les villes sont extraites (phase 1), puis to
 |-------|---------|-------------|
 | **1. Extraction** | `_extract_all_cities` | `OpenWeatherClient` + `AQICNClient` par ville |
 | **2. Bronze** | `_save_all_raw` | `HivePartitionedStorage` → fichiers horaires |
-| **2b. Liaison** | `_link_raw_keys_from_storage` | Retrouve les JSON raw sur MinIO/disque |
+| **2b. Liaison** | `_link_raw_keys_from_storage` | Retrouve les JSON raw sur MinIO |
 | **3. Silver** | `_transform_all` | Transformateurs → `insert_silver_*` MongoDB |
 | **3b. Alertes** | `AlertService` | Immédiat après insert Silver réussi |
 | **4. Gold** | `_run_gold` → `GoldPipeline.run()` | Agrégation du jour Paris en cours |
@@ -513,9 +512,7 @@ Copier `.env.example` vers `.env`.
 
 | Variable | Défaut | Description |
 |----------|--------|-------------|
-| `STORAGE_BACKEND` | `local` dans code / `minio` dans Docker | `local` ou `minio` |
-| `DATA_BASE_PATH` | `./data` | Racine données mode local |
-| `DATA_RAW_PATH` | `{DATA_BASE_PATH}/raw` | Bronze local |
+| `STORAGE_BACKEND` | `minio` | Backend de stockage (MinIO uniquement) |
 | `MINIO_ENDPOINT` | `localhost:9000` | Hôte:port (Docker : `minio:9000`) |
 | `MINIO_ACCESS_KEY` | `minioadmin` | |
 | `MINIO_SECRET_KEY` | `minioadmin` | |
@@ -545,7 +542,7 @@ mongodb://weather_user:weather_pass@localhost:27018/weather_etl?authSource=weath
 | Variable | Défaut | Description |
 |----------|--------|-------------|
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `LOG_PATH` | `data/logs` | Fichiers planificateur |
+| `LOG_PATH` | `logs` | Logs applicatifs Python (hors logs Airflow) |
 | `REQUEST_TIMEOUT` | `30` | Secondes |
 | `MAX_RETRIES` | `3` | Retries API |
 | `LOCAL_TIMEZONE` | `Europe/Paris` | Alignement horaire (documentation) |
@@ -563,13 +560,13 @@ mongodb://weather_user:weather_pass@localhost:27018/weather_etl?authSource=weath
 
 ## Guide d'utilisation
 
-### Production — planificateur horaire
+### Production — orchestration Airflow
 
 ```bash
-python scheduler.py
+docker compose up -d airflow-db minio minio-init mongodb airflow-init airflow-webserver airflow-scheduler
 ```
 
-Docker : service **`etl`** → `python scheduler.py`, logs volume **`etl_logs`**.
+UI Airflow : `http://localhost:8080` (admin/admin par défaut, créé par `airflow-init`).
 
 ### Pipeline complet (une fois)
 
@@ -577,30 +574,12 @@ Docker : service **`etl`** → `python scheduler.py`, logs volume **`etl_logs`**
 python transformations/pipline_final.py
 ```
 
-### Bronze seul (sans Silver/Gold)
-
-```bash
-python fetch_data.py
-python fetch_data.py --weather
-python fetch_data.py --air-quality
-python fetch_data.py --town paris --hours 3
-python fetch_data.py --list-towns
-```
-
-Basé sur `etl/pipeline.py` (legacy).
-
 ### Rattrapage Mongo depuis MinIO
 
 Si le Bronze existe mais MongoDB est vide :
 
 ```bash
 python scripts/backfill_mongo_from_minio.py
-```
-
-### Vérification installation
-
-```bash
-python test_setup.py
 ```
 
 ### API Python
@@ -617,11 +596,12 @@ print(summary.get("mongodb_stats"))
 
 | Service | Port / accès | Rôle |
 |---------|--------------|------|
-| `etl` | logs `docker compose logs etl` | Scheduler + pipeline |
+| `airflow-webserver` | 8080 UI | Orchestration DAGs |
+| `airflow-scheduler` | logs `docker compose logs airflow-scheduler` | Planification/exécution DAGs |
 | `minio` | 9000 API, 9001 console | Bronze |
 | `mongodb` | 27018 → 27017 | Silver, Gold, alertes |
 | `jupyter` | 8888 | Notebooks ML |
-| `minio-init` | — | Crée le bucket `weather-etl` |
+| `minio-init` | — | Crée les buckets `weather-etl` et `airflow-logs` |
 
 ---
 
@@ -1145,6 +1125,12 @@ Définies dans `config/towns.py` (`FRENCH_TOWNS`) :
 
 ```
 weather_etl_v2/
+├── airflow/
+│   ├── dags/
+│   │   ├── weather_etl_hourly_parity.py
+│   │   └── weather_etl_debug_trace.py
+│   ├── logs/                     # Logs locaux historiques (non persistés en prod)
+│   └── plugins/
 ├── alerts/                      # Notifications Discord
 │   ├── service.py               # Orchestration
 │   ├── rules.py                 # Seuils & messages
@@ -1155,6 +1141,11 @@ weather_etl_v2/
 ├── config/
 │   ├── settings.py              # Variables .env
 │   └── towns.py
+├── docker/
+│   ├── Dockerfile.airflow
+│   ├── Dockerfile.jupyter
+│   ├── entrypoint.sh
+│   └── mongo-init.js
 ├── transformations/
 │   ├── pipline_final.py         # Pipeline principal
 │   ├── improved_weather_transformer.py
@@ -1162,7 +1153,7 @@ weather_etl_v2/
 │   ├── improved_gold_pipeline.py
 │   └── transformationscommon_cleaning.py
 ├── storage/
-│   ├── data_store.py            # Local / MinIO
+│   ├── data_store.py            # MinIO uniquement
 │   ├── hive_storage.py          # Bronze partitionné
 │   └── mongodb_storage.py
 ├── MachineLearning/
@@ -1174,10 +1165,7 @@ weather_etl_v2/
 │   ├── timezone_utils.py        # Europe/Paris
 │   ├── logger.py
 │   └── retry.py
-├── etl/pipeline.py              # Bronze legacy (fetch_data)
-├── scheduler.py                 # Cron horaire
-├── fetch_data.py
-├── test_setup.py
+├── etl/pipeline.py              # Legacy (non utilisé en prod)
 ├── docker-compose.yml
 ├── Dockerfile
 ├── requirements.txt
@@ -1194,7 +1182,7 @@ weather_etl_v2/
 |----------|--------|
 | Silver vide / transform fail | Vérifier `_storage.hour_timestamp_*` dans Bronze ; logs `Unreliable timestamp` |
 | Gold `is_trusted: false` | Moins de 18 h de données ou `data_quality_score` < 0,7 |
-| Pas d'alerte Discord | `DISCORD_WEBHOOK_*` dans `.env` ; redémarrer `etl` ; `python scripts/test_alerts.py --ping` |
+| Pas d'alerte Discord | `DISCORD_WEBHOOK_*` dans `.env` ; redémarrer `airflow-webserver` + `airflow-scheduler` ; `python scripts/test_alerts.py --ping` |
 | Alerte une seule fois | Déduplication normale — `--force` pour test ou supprimer `alert_notifications` |
 | MongoDB connexion refusée | Port 27018 (Docker) vs 27017 (local) ; identifiants `weather_user` |
 | MinIO bucket manquant | `docker compose up minio-init` ou créer `weather-etl` à la main |
