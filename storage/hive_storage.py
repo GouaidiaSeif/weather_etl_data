@@ -64,7 +64,7 @@ class HivePartitionedStorage:
         api_source: str,
     ) -> Optional[datetime]:
         try:
-            if api_source == "openweather":
+            if api_source == "openweather" or api_source == "openweather_air_forecast":
                 dt_value = None
 
                 if isinstance(data, dict):
@@ -74,6 +74,9 @@ class HivePartitionedStorage:
                         dt_value = data["current"].get("dt")
                     elif "dt" in data:
                         dt_value = data["dt"]
+                    # Get dt for forecast air quality data
+                    elif "list" in data and isinstance(data["list"], list) :
+                        dt_value = data["list"][0].get("dt")
 
                 if dt_value:
                     return datetime.fromtimestamp(int(dt_value), tz=timezone.utc)
@@ -129,8 +132,10 @@ class HivePartitionedStorage:
             return f"weather_{hour_str}_raw.json"
         if api_source == "aqicn":
             return f"air_quality_{hour_str}_raw.json"
+        elif api_source == "openweather_air_forecast":
+            return f"air_forecast_{hour_str}_raw.json"
         return f"{api_source}_{hour_str}_raw.json"
-
+    
     def hourly_object_key(
         self,
         city_name: str,
@@ -243,35 +248,44 @@ class HivePartitionedStorage:
             f"{ref_paris.strftime('%Y-%m-%d %H:%M %Z')}"
         )
 
-        for hour_record in hourly_data:
-            hour_dt = hour_record.get("dt")
-            if not hour_dt:
-                continue
+        # for hour_record in hourly_data:
+        #     hour_dt = hour_record.get("dt")
+        #     if not hour_dt:
+        #         continue
 
-            hour_time = datetime.fromtimestamp(int(hour_dt), tz=timezone.utc)
-
-            if floor_to_paris_hour(hour_time) != ref_paris:
-                continue
-
-            full_record = {
-                "hourly": hour_record,
-                "lat": api_response.get("lat"),
-                "lon": api_response.get("lon"),
-                "timezone": api_response.get("timezone"),
-                "timezone_offset": api_response.get("timezone_offset"),
-                "_metadata": api_response.get("_metadata", {}),
-            }
-
-            try:
-                object_key = self.save_hourly_data(
-                    data=full_record,
-                    api_source="openweather",
-                    city_name=city_name,
-                    hour_timestamp=hour_time,
+           # get the first hour record (actual hour)
+        hour_dt = hourly_data[0].get("dt")
+        hour_time = datetime.fromtimestamp(int(hour_dt), tz=timezone.utc)
+        weather_paris = floor_to_paris_hour(hour_time)
+        
+        if weather_paris != ref_paris:
+            logger.warning(
+                    f"Weather hour {weather_paris.isoformat()} != reference Paris hour "
+                    f"{ref_paris.isoformat()} for {city_name}; using reference hour"
                 )
-                saved_keys.append(object_key)
-            except Exception as e:
-                logger.error(f"Failed to save hour {hour_time} for {city_name}: {e}")
+            # continue
+
+        full_record = {
+            "hourly": hourly_data,
+            "lat": api_response.get("lat"),
+            "lon": api_response.get("lon"),
+            "timezone": api_response.get("timezone"),
+            "timezone_offset": api_response.get("timezone_offset"),
+            "_metadata": api_response.get("_metadata", {}),
+        }
+
+        hour_time = weather_paris
+        try:
+            object_key = self.save_hourly_data(
+                data=full_record,
+                api_source="openweather",
+                city_name=city_name,
+                hour_timestamp=hour_time,
+            )
+            saved_keys.append(object_key)
+        except Exception as e:
+            logger.error(f"Failed to save hour {hour_time} for {city_name}: {e}")
+
 
         logger.info(f"Saved {len(saved_keys)} hourly weather records for {city_name}")
         return saved_keys
@@ -300,6 +314,64 @@ class HivePartitionedStorage:
             city_name=city_name,
             hour_timestamp=hour_timestamp,
         )
+
+    def save_air_forecast_data(
+        self,
+        api_response: Dict[str, Any],
+        city_name: str,
+        target_hour: Optional[datetime] = None,
+    ) -> str:
+        """Save hourly air quality forecast records from OpenWeather API response.
+                            
+        Args:
+            api_response: Full API response from OpenWeather
+            city_name: Name of the city
+            target_hour: Optional target hour to extract (defaults to current UTC time)
+            
+        Returns:
+            raw data object key 
+        """
+        hourly_data = api_response.get("list", [])
+        
+        if not hourly_data:
+            logger.warning(f"No forecast data found for {city_name}")
+            return ""
+        
+        # Use provided target hour or extract from API response
+        if target_hour is None:
+            current_dt = api_response.get("list", [])[0].get("dt")
+            if current_dt:
+                target_hour = datetime.fromtimestamp(int(current_dt), tz=timezone.utc)
+            else:
+                target_hour = datetime.now(timezone.utc)
+        
+        ref_paris = floor_to_paris_hour(target_hour) 
+        logger.info(
+            f"Extracting forecast pollution for {city_name} at Paris hour "
+            f"{ref_paris.strftime('%Y-%m-%d %H:%M %Z')}"
+        )            
+           
+        # get the first hour record (actual hour)
+        hour_dt = hourly_data[0].get("dt")
+        hour_time = datetime.fromtimestamp(int(hour_dt), tz=timezone.utc)
+        hour_forecast_paris = floor_to_paris_hour(hour_time)
+        
+        if hour_forecast_paris != ref_paris:
+            logger.warning(
+                    f"Forecast hour {hour_forecast_paris.isoformat()} != reference Paris hour "
+                    f"{ref_paris.isoformat()} for {city_name}; using reference hour"
+                )
+        
+        raw_data = self.save_hourly_data(
+                data=api_response,
+                api_source="openweather_air_forecast",
+                city_name=city_name,
+                hour_timestamp=hour_forecast_paris
+            )
+        # saved_keys.append(object_key)
+        
+        logger.info(f"Saved hourly pollution forecast records at {hour_time} for {city_name}")
+        return raw_data
 
     def load(
         self,

@@ -116,21 +116,22 @@ class AirQualityTransformer:
     @staticmethod
     def _extract_paris_time(
         raw_record: Dict[str, Any], time_info: Dict[str, Any]
-    ) -> Tuple[datetime, str]:
+    ) -> Tuple[datetime,datetime, str]:
         storage = raw_record.get("_storage", {})
         for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
             dt = parse_storage_timestamp(storage.get(key, ""))
             if dt is not None:
-                return dt.astimezone(PARIS_TZ), "storage"
+                return dt.astimezone(PARIS_TZ), dt.astimezone(timezone.utc), "storage"
 
         if "v" in time_info:
             try:
                 dt = datetime.fromtimestamp(int(time_info["v"]), tz=timezone.utc).astimezone(PARIS_TZ)
-                return dt, "api_time"
+                dt_utc = datetime.fromtimestamp(int(time_info["v"]), tz=timezone.utc).astimezone(timezone.utc)
+                return dt, dt_utc, "api_time"
             except (ValueError, TypeError):
                 pass
 
-        return datetime.now(timezone.utc).astimezone(PARIS_TZ), "fallback_now"
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ), datetime.now(timezone.utc).astimezone(timezone.utc), "fallback_now"
 
     @staticmethod
     def _get_primary_pollutant(iaqi: Dict[str, Any]) -> Optional[str]:
@@ -201,7 +202,7 @@ class AirQualityTransformer:
         city_info = data.get("city", {})
         forecast = data.get("forecast", {})
 
-        paris_dt, timestamp_source = AirQualityTransformer._extract_paris_time(
+        paris_dt, utc_dt, timestamp_source = AirQualityTransformer._extract_paris_time(
             raw_record, time_info
         )
         if timestamp_source == "fallback_now":
@@ -225,9 +226,10 @@ class AirQualityTransformer:
 
         pm25 = AirQualityTransformer._validate_pollutant("pm25", iaqi.get("pm25", {}).get("v"))
         pm10 = AirQualityTransformer._validate_pollutant("pm10", iaqi.get("pm10", {}).get("v"))
-        if pm25 is not None and pm10 is not None and pm25 > pm10:
-            logger.warning(f"PM2.5 ({pm25}) > PM10 ({pm10}); nulling pm25")
-            pm25 = None
+        # Only valid if concentration (ug/m3) not AQI
+        # if pm25 is not None and pm10 is not None and pm25 > pm10:
+        #     logger.warning(f"PM2.5 ({pm25}) > PM10 ({pm10}); nulling pm25")
+        #     pm25 = None
 
         no2 = AirQualityTransformer._validate_pollutant("no2", iaqi.get("no2", {}).get("v"))
         o3 = AirQualityTransformer._validate_pollutant("o3", iaqi.get("o3", {}).get("v"))
@@ -256,7 +258,7 @@ class AirQualityTransformer:
             "timestamp_utc": timestamp,
             "timestamp_paris": paris_dt.isoformat(),
             "date_paris": date_paris,
-            "hour": hour,
+            "hour": utc_dt,
             "hour_paris": hour,
             "hour_formatted": format_hour_paris(paris_dt),
             "city": city,

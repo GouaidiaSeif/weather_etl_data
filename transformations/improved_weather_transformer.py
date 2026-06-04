@@ -60,35 +60,58 @@ class WeatherTransformer:
     @staticmethod
     def _extract_paris_time(
         raw_record: Dict[str, Any], hourly: Dict[str, Any]
-    ) -> Tuple[datetime, str]:
+    ) -> Tuple[datetime, datetime, str]:
         """Resolve event time in Europe/Paris from storage metadata or hourly.dt."""
         storage = raw_record.get("_storage", {})
         for key in ("hour_timestamp_paris", "hour_timestamp_utc", "hour_timestamp"):
             dt = parse_storage_timestamp(storage.get(key, ""))
             if dt is not None:
-                return dt.astimezone(PARIS_TZ), "storage"
+                return dt.astimezone(PARIS_TZ),dt.astimezone(timezone.utc), "storage"
 
         dt_value = hourly.get("dt")
         if dt_value:
             return (
                 datetime.fromtimestamp(int(dt_value), tz=timezone.utc).astimezone(PARIS_TZ),
+                datetime.fromtimestamp(int(dt_value), tz=timezone.utc).astimezone(timezone.utc),
                 "hourly_dt",
             )
 
-        return datetime.now(timezone.utc).astimezone(PARIS_TZ), "fallback_now"
+        return datetime.now(timezone.utc).astimezone(PARIS_TZ), datetime.now(timezone.utc).astimezone(timezone.utc), "fallback_now"
 
     @staticmethod
-    def _calculate_heat_index(temp: float, humidity: float) -> Optional[float]:
-        """Calculate heat index (feels-like temperature based on temp + humidity)."""
+    def _calculate_heat_index(temp: float, humidity: float) -> Dict[str, Any]:
+        """Calculate heat index (feels-like temperature based on temp + humidity).
+         - v4 : add warning
+        """
         if temp < 27 or humidity < 40:
-            return None
-        
+            return {
+                "hi": None,
+                "warning": "safe"
+        }
+            
         # Simplified heat index formula
         hi = (-8.784694755 + 1.61139411 * temp + 2.338548839 * humidity 
               - 0.14611605 * temp * humidity - 0.012308094 * temp**2 
               - 0.016424828 * humidity**2 + 0.002211732 * temp**2 * humidity 
               + 0.00072546 * temp * humidity**2 - 0.000003582 * temp**2 * humidity**2)
-        return round(hi, 2)
+        
+        hi = round(hi, 2)
+        
+        if hi < 27:
+            warning = "safe"
+        elif 27 <= hi <= 32:
+            warning = "caution"
+        elif 33 <= hi <= 40:
+            warning = "extreme caution"
+        elif 41 <= hi <= 51:
+            warning = "danger"
+        else: 
+            warning = "extreme danger"
+        
+        return {
+            "hi": round(hi,2),
+            "warning": warning
+        }
 
     @staticmethod
     def _classify_weather_severity(
@@ -171,21 +194,172 @@ class WeatherTransformer:
             logger.error("No 'hourly' data found in raw record")
             raise ValueError("Missing hourly data in weather record")
         
-        # Weather info (array with one element)
-        weather_list = hourly.get("weather", [])
-        weather = weather_list[0] if weather_list else {}
+        # Separate first element (actual where when api called) and remaining (forecast)
+        current, *forecast = hourly
         
-        paris_dt, timestamp_source = WeatherTransformer._extract_paris_time(
-            raw_record, hourly
-        )
-        if timestamp_source == "fallback_now":
-            raise ValueError(
-                "Unreliable timestamp: no storage metadata or hourly.dt in weather record"
+        def _process_item(item_hourly : Dict[str, Any]) -> Dict[str, Any] :
+        
+            # Weather info (array with one element)
+            weather_list = item_hourly.get("weather", [])
+            weather = weather_list[0] if weather_list else {}
+            
+            paris_dt, utc_dt, timestamp_source = WeatherTransformer._extract_paris_time(
+                item_hourly, item_hourly
             )
+            if timestamp_source == "fallback_now":
+                raise ValueError(
+                    "Unreliable timestamp: no storage metadata or hourly.dt in weather record"
+                )
 
-        timestamp = paris_dt.astimezone(timezone.utc).isoformat()
-        hour = paris_hour(paris_dt)
-        date_paris = paris_date_str(paris_dt)
+            timestamp = paris_dt.astimezone(timezone.utc).isoformat()
+            hour_utc = utc_dt.hour
+            hour = paris_hour(paris_dt)
+            date_paris = paris_date_str(paris_dt)
+            
+            # # City name
+            # if city_name:
+            #     city = city_name.lower()
+            # else:
+            #     city = raw_record.get("_storage", {}).get("city", "unknown")
+            
+            # Extract and validate fields (flat structure in hourly)
+            temp = WeatherTransformer._validate_field(
+                "temperature_celsius", 
+                item_hourly.get("temp"),
+                default=None
+            )
+            feels_like = WeatherTransformer._validate_field(
+                "temperature_celsius",
+                item_hourly.get("feels_like"),
+                default=temp
+            )
+            humidity = WeatherTransformer._validate_field(
+                "humidity_percent",
+                item_hourly.get("humidity"),
+                default=None
+            )
+            pressure = WeatherTransformer._validate_field(
+                "pressure_hpa",
+                item_hourly.get("pressure"),
+                default=None
+            )
+            dew_point = WeatherTransformer._validate_field(
+                "dew_point_celsius",
+                item_hourly.get("dew_point"),
+                default=None
+            )
+            wind_speed = WeatherTransformer._validate_field(
+                "wind_speed_mps",
+                item_hourly.get("wind_speed"),
+                default=None
+            )
+            wind_gust = WeatherTransformer._validate_field(
+                "wind_speed_mps",
+                item_hourly.get("wind_gust"),
+                default=None
+            )
+            wind_deg = WeatherTransformer._validate_field(
+                "wind_direction_deg",
+                item_hourly.get("wind_deg"),
+                default=None
+            )
+            uvi = WeatherTransformer._validate_field(
+                "uvi",
+                item_hourly.get("uvi"),
+                default=None
+            )
+            clouds = WeatherTransformer._validate_field(
+                "cloud_coverage_percent",
+                item_hourly.get("clouds"),
+                default=None
+            )
+            visibility = WeatherTransformer._validate_field(
+                "visibility_m", item_hourly.get("visibility"), default=None
+            )
+            raw_pop = item_hourly.get("pop")
+            if raw_pop is None:
+                pop_percent = None
+            else:
+                pop_val = optional_float(raw_pop)
+                if pop_val is not None:
+                    pop_scaled = pop_val * 100 if pop_val <= 1 else pop_val
+                    pop_percent = WeatherTransformer._validate_field(
+                        "pop_percent", pop_scaled, default=None
+                    )
+                else:
+                    pop_percent = None
+            
+            # Build transformed record with ALL available fields
+            transformed_item = {
+                # Core identification
+                "timestamp_utc": timestamp,
+                "timestamp_paris": paris_dt.isoformat(),
+                "date_paris": date_paris,
+                "hour": hour_utc,
+                "hour_paris": hour,
+                "hour_formatted": format_hour_paris(paris_dt),
+                "city": city,
+                
+                # Temperature fields
+                "temperature_celsius": round(temp, 2) if temp is not None else None,
+                "feels_like_celsius": round(feels_like, 2) if feels_like is not None else None,
+                "dew_point_celsius": round(dew_point, 2) if dew_point is not None else None,
+                
+                # Atmospheric fields
+                "humidity_percent": int(humidity) if humidity is not None else None,
+                "pressure_hpa": int(pressure) if pressure is not None else None,
+                
+                # Wind fields
+                "wind_speed_mps": round(wind_speed, 2) if wind_speed is not None else None,
+                "wind_gust_mps": round(wind_gust, 2) if wind_gust is not None else None,
+                "wind_direction_deg": int(wind_deg) if wind_deg is not None else None,
+                "wind_direction_cardinal": WeatherTransformer._deg_to_cardinal(wind_deg) if wind_deg else None,
+                
+                # Sky and visibility
+                "cloud_coverage_percent": int(clouds) if clouds is not None else None,
+                "visibility_m": visibility,
+                
+                # Weather condition
+                "weather_main": weather.get("main", "unknown").lower() if weather else "unknown",
+                "weather_description": weather.get("description", "unknown").lower() if weather else "unknown",
+                "weather_icon": weather.get("icon"),
+                "weather_id": weather.get("id"),
+                
+                # Precipitation
+                "precipitation_probability_percent": (
+                    int(pop_percent) if pop_percent is not None else None
+                ),
+
+                # UV index
+                "uvi": round(uvi, 2) if uvi is not None else None,
+                "uvi_category": WeatherTransformer._categorize_uvi(uvi) if uvi is not None else None,
+
+                # Derived metrics (only when inputs are present)
+                "heat_index_celsius": (
+                    WeatherTransformer._calculate_heat_index(temp, humidity)["hi"]
+                    if temp is not None and humidity is not None
+                    else None
+                ),
+                "weather_severity": (
+                    WeatherTransformer._classify_weather_severity(temp, wind_speed, wind_gust, uvi)
+                    if temp is not None and wind_speed is not None
+                    else None
+                ),
+                
+                "heat_index_warning": (
+                    WeatherTransformer._calculate_heat_index(temp, humidity)["warning"]
+                    if temp is not None and humidity is not None
+                    else None
+                ),
+
+                
+                # Location metadata
+                # "latitude": raw_record.get("lat"),
+                # "longitude": raw_record.get("lon"),
+                # "timezone": raw_record.get("timezone"),
+                # "timezone_offset_seconds": raw_record.get("timezone_offset"),
+            }
+            return transformed_item
         
         # City name
         if city_name:
@@ -193,137 +367,29 @@ class WeatherTransformer:
         else:
             city = raw_record.get("_storage", {}).get("city", "unknown")
         
-        # Extract and validate fields (flat structure in hourly)
-        temp = WeatherTransformer._validate_field(
-            "temperature_celsius", 
-            hourly.get("temp"),
-            default=None
-        )
-        feels_like = WeatherTransformer._validate_field(
-            "temperature_celsius",
-            hourly.get("feels_like"),
-            default=temp
-        )
-        humidity = WeatherTransformer._validate_field(
-            "humidity_percent",
-            hourly.get("humidity"),
-            default=None
-        )
-        pressure = WeatherTransformer._validate_field(
-            "pressure_hpa",
-            hourly.get("pressure"),
-            default=None
-        )
-        dew_point = WeatherTransformer._validate_field(
-            "dew_point_celsius",
-            hourly.get("dew_point"),
-            default=None
-        )
-        wind_speed = WeatherTransformer._validate_field(
-            "wind_speed_mps",
-            hourly.get("wind_speed"),
-            default=None
-        )
-        wind_gust = WeatherTransformer._validate_field(
-            "wind_speed_mps",
-            hourly.get("wind_gust"),
-            default=None
-        )
-        wind_deg = WeatherTransformer._validate_field(
-            "wind_direction_deg",
-            hourly.get("wind_deg"),
-            default=None
-        )
-        uvi = WeatherTransformer._validate_field(
-            "uvi",
-            hourly.get("uvi"),
-            default=None
-        )
-        clouds = WeatherTransformer._validate_field(
-            "cloud_coverage_percent",
-            hourly.get("clouds"),
-            default=None
-        )
-        visibility = WeatherTransformer._validate_field(
-            "visibility_m", hourly.get("visibility"), default=None
-        )
-        raw_pop = hourly.get("pop")
-        if raw_pop is None:
-            pop_percent = None
-        else:
-            pop_val = optional_float(raw_pop)
-            if pop_val is not None:
-                pop_scaled = pop_val * 100 if pop_val <= 1 else pop_val
-                pop_percent = WeatherTransformer._validate_field(
-                    "pop_percent", pop_scaled, default=None
-                )
-            else:
-                pop_percent = None
+        _,_, timestamp_source = WeatherTransformer._extract_paris_time(
+                raw_record, current
+            )
+        if timestamp_source == "fallback_now":
+            raise ValueError(
+                "Unreliable timestamp: no storage metadata or hourly.dt in weather record"
+            )
         
-        # Build transformed record with ALL available fields
         transformed = {
-            # Core identification
-            "timestamp_utc": timestamp,
-            "timestamp_paris": paris_dt.isoformat(),
-            "date_paris": date_paris,
-            "hour": hour,
-            "hour_paris": hour,
-            "hour_formatted": format_hour_paris(paris_dt),
-            "city": city,
-            
-            # Temperature fields
-            "temperature_celsius": round(temp, 2) if temp is not None else None,
-            "feels_like_celsius": round(feels_like, 2) if feels_like is not None else None,
-            "dew_point_celsius": round(dew_point, 2) if dew_point is not None else None,
-            
-            # Atmospheric fields
-            "humidity_percent": int(humidity) if humidity is not None else None,
-            "pressure_hpa": int(pressure) if pressure is not None else None,
-            
-            # Wind fields
-            "wind_speed_mps": round(wind_speed, 2) if wind_speed is not None else None,
-            "wind_gust_mps": round(wind_gust, 2) if wind_gust is not None else None,
-            "wind_direction_deg": int(wind_deg) if wind_deg is not None else None,
-            "wind_direction_cardinal": WeatherTransformer._deg_to_cardinal(wind_deg) if wind_deg else None,
-            
-            # Sky and visibility
-            "cloud_coverage_percent": int(clouds) if clouds is not None else None,
-            "visibility_m": visibility,
-            
-            # Weather condition
-            "weather_main": weather.get("main", "unknown").lower() if weather else "unknown",
-            "weather_description": weather.get("description", "unknown").lower() if weather else "unknown",
-            "weather_icon": weather.get("icon"),
-            "weather_id": weather.get("id"),
-            
-            # Precipitation
-            "precipitation_probability_percent": (
-                int(pop_percent) if pop_percent is not None else None
-            ),
-
-            # UV index
-            "uvi": round(uvi, 2) if uvi is not None else None,
-            "uvi_category": WeatherTransformer._categorize_uvi(uvi) if uvi is not None else None,
-
-            # Derived metrics (only when inputs are present)
-            "heat_index_celsius": (
-                WeatherTransformer._calculate_heat_index(temp, humidity)
-                if temp is not None and humidity is not None
-                else None
-            ),
-            "weather_severity": (
-                WeatherTransformer._classify_weather_severity(temp, wind_speed, wind_gust, uvi)
-                if temp is not None and wind_speed is not None
-                else None
-            ),
-            
             # Location metadata
+            "city" : city,
             "latitude": raw_record.get("lat"),
             "longitude": raw_record.get("lon"),
             "timezone": raw_record.get("timezone"),
             "timezone_offset_seconds": raw_record.get("timezone_offset"),
         }
         
+        # add current weather and forecast
+        current_data = _process_item(current)
+        transformed.update(current_data)
+        transformed["forecast"] = [_process_item(item) for item in forecast]
+        
+        # Add data quality metrics
         transformed["_data_quality"] = WeatherTransformer._calculate_data_quality(
             transformed, timestamp_source
         )

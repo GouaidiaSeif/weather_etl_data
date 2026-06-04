@@ -1,0 +1,8 @@
+
+-r requirements.txt
+
+pymongo>=4.6.0
+streamlit>= 1.55.0
+statsmodels>=0.14.6
+plotly>=5.24.1
+plotly-calplot >=0.1.20

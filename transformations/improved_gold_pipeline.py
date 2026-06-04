@@ -17,6 +17,10 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from utils.logger import get_logger
 from utils.dedupe import dedupe_records_by_hour
 from transformations.transformationscommon_cleaning import daily_trust_flags
+from storage.data_store import DataStore, create_data_store
+from config.settings import Settings, get_settings
+from transformations.air_quality_forecast_transformer import add_forecast_to_daily_json
+
 
 if TYPE_CHECKING:
     from storage.mongodb_storage import MongoDBStorage
@@ -31,10 +35,14 @@ class GoldPipeline:
         self,
         mongodb: "MongoDBStorage",
         aggregation_date_paris: Optional[str] = None,
+        settings: Optional[Settings] = None
     ):
         self._mongodb = mongodb
         self._aggregation_date_paris = aggregation_date_paris
+        self._settings = settings or get_settings()
+        self._raw_store: DataStore = create_data_store(self._settings)
 
+        
     @staticmethod
     def _sanitize_city_name(city: str) -> str:
         """Sanitize city name for use in directory paths."""
@@ -154,14 +162,25 @@ class GoldPipeline:
                 hourly_breakdown = []
                 for r in records:
                     hourly_breakdown.append({
-                        "hour": r.get("hour"),
+                        "hour": r.get("hour_paris"),
                         "hour_formatted": r.get("hour_formatted"),
                         "temperature": r.get("temperature_celsius"),
+                        "feels_like" : r.get("feels_like_celsius"),
+                        "heat_index_celsius": r.get("heat_index_celsius"),
                         "humidity": r.get("humidity_percent"),
+                        "pressure_hpa" : r.get("pressure_hpa"),
                         "wind_speed": r.get("wind_speed_mps"),
+                        "wind_gust_mps" : r.get("wind_gust_mps"),
+                        "wind_direction_cardinal" : r.get("wind_direction_cardinal"),
                         "weather": r.get("weather_main"),
                         "uvi": r.get("uvi"),
+                        "uvi_category" : r.get("uvi_category"),
+                        "heat_index_warning": r.get("heat_index_warning"),
+                        "weather_severity" :r.get("weather_severity"),
                     })
+                
+                # keep last forecast from the last hour recorded
+                last_forecast = records[-1].get("forecast", [])
                 
                 if not temps:
                     logger.warning(f"No temperature data for {city} on {date}")
@@ -276,6 +295,8 @@ class GoldPipeline:
                     or gold_record["max_severity"] in ["severe", "extreme"]
                 )
                 
+                gold_record["last_forecast"] = last_forecast if last_forecast else None
+
                 self._save_gold_record("weather_daily", city, date, gold_record)
                 
             except Exception as e:
@@ -333,13 +354,16 @@ class GoldPipeline:
                 hourly_breakdown = []
                 for r in records:
                     hourly_breakdown.append({
-                        "hour": r.get("hour"),
+                        "hour": r.get("hour_paris"),
                         "hour_formatted": r.get("hour_formatted"),
                         "aqi": r.get("aqi"),
                         "alert_level": r.get("alert_level"),
                         "primary_pollutant": r.get("primary_pollutant"),
                         "pm25": r.get("pm25"),
                         "pm10": r.get("pm10"),
+                        "no2": r.get("no2"),
+                        "o3": r.get("o3"),
+                        "co": r.get("co"),
                     })
                 
                 if not aqis:
@@ -375,7 +399,7 @@ class GoldPipeline:
                     "city": city,
                     "date": date,
                     "records_count": len(records),
-                    "hours_covered": [r.get("hour") for r in records if r.get("hour") is not None],
+                    "hours_covered": [r.get("hour_paris") for r in records if r.get("hour_paris") is not None],
                     
                     # Hourly breakdown
                     "hourly_data": hourly_breakdown,
@@ -437,6 +461,24 @@ class GoldPipeline:
                     gold_record["max_aqi"] >= 150 or
                     gold_record["unhealthy_hours_count"] >= 4
                 )
+                
+                # get last hour covered and add forecast data if exists (from raw store)
+                logger.info("Air Forecast aggregation...")
+                last_hour_covered = gold_record["hours_covered"][-1] if gold_record["hours_covered"] else None
+                if last_hour_covered is not None:
+                    key = (
+                        f"raw/city={city}/year={date[0:4]}/month={date[5:7]}/day={date[8:10]}"
+                        f"/air_forecast_{last_hour_covered}_raw.json"
+                    )
+                    if self._raw_store.exists(key) :
+                        try : 
+                            forecast_data = self._raw_store.get_json(key)
+                            gold_record = add_forecast_to_daily_json(gold_record, forecast_data)
+                            logger.info(f"Air forecast added to gold quality gold data for {city} on {date}")
+                        except Exception as e:
+                            logger.warning(f"Failed to load last hour forecast for {city} on {date}: {e}")
+                else : 
+                    logger.info("No last hour found in quality")
                 
                 self._save_gold_record("air_quality_daily", city, date, gold_record)
                 

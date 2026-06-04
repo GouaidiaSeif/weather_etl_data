@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from clients.openweather_client import OpenWeatherClient
 from clients.aqicn_client import AQICNClient
+from clients.openweatherAir_client import OpenWeatherAirQualityClient
 from config.settings import Settings, get_settings
 from config.towns import FRENCH_TOWNS, Town
 from storage.data_store import DataStore, create_raw_store
@@ -97,6 +98,7 @@ class WeatherETLPipeline:
 
         self._weather_client: Optional[OpenWeatherClient] = None
         self._air_quality_client: Optional[AQICNClient] = None
+        self._air_forecast_client: Optional[OpenWeatherAirQualityClient] = None
         self._alerts: Optional[AlertService] = None
 
         logger.info(f"WeatherETLPipeline initialized for {len(self._towns)} towns")
@@ -113,7 +115,11 @@ class WeatherETLPipeline:
             timeout=self._settings.request_timeout,
             max_retries=self._settings.max_retries,
         )
-
+        self._air_forecast_client = OpenWeatherAirQualityClient(
+            api_key=self._settings.openweather_api_key,
+            timeout=self._settings.request_timeout,
+            max_retries=self._settings.max_retries,
+        )
         # Connect to MongoDB
         if self._mongodb.connect():
             logger.info("MongoDB connected successfully")
@@ -135,6 +141,8 @@ class WeatherETLPipeline:
             self._weather_client.close()
         if self._air_quality_client:
             self._air_quality_client.close()
+        if self._air_forecast_client:
+            self._air_forecast_client.close()
 
         # Close MongoDB connection
         self._mongodb.close()
@@ -175,6 +183,16 @@ class WeatherETLPipeline:
                 data.air_quality_error = str(e)
                 logger.error(f"  FAIL Air Quality extraction failed: {e}")
 
+            # Extract air forecast
+            try:            
+                data.air_forecast_data = self._air_forecast_client.fetch_air_quality_forecast(town)
+                forecast_count = len(data.air_forecast_data.get('list', []))
+                logger.info(f"  OK Air Forecast: {forecast_count} forecast records")
+            except Exception as e:
+                data.air_forecast_raw_key = str(e)
+                logger.error(f"  FAIL Air Forecast extraction failed: {e}")
+
+            
             extracted_data.append(data)
 
         success_count = sum(1 for d in extracted_data if d.weather_data or d.air_quality_data)
@@ -228,6 +246,20 @@ class WeatherETLPipeline:
                     data.air_quality_error = str(e)
                     logger.error(f"  FAIL {town.name}: Failed to save air quality raw: {e}")
 
+            # Save air forecast raw (filesystem only - NOT MongoDB)
+            if data.air_forecast_data:
+                try:
+                    path = self._storage.save_air_forecast_data(
+                        api_response=data.air_forecast_data,
+                        city_name=town.name,
+                        target_hour=reference_hour,
+                    )
+                    data.air_forecast_raw_key = path
+                    logger.info(f"  OK {town.name}: Saved air forecast raw -> {self._raw_store.key_name(path)}")
+                except Exception as e:
+                    data.air_forecast_error = str(e)
+                    logger.error(f"  FAIL {town.name}: Failed to save air forecast raw: {e}")
+
     def _link_raw_keys_from_storage(
         self,
         extracted_data: List[ExtractedData],
@@ -274,6 +306,22 @@ class WeatherETLPipeline:
                 if f"air_quality_{hour_label}_raw" in key:
                     data.air_quality_raw_key = key
                     logger.info(f"  LINK {town.name}: Air quality raw from MinIO -> {self._raw_store.key_name(key)}")
+                    break
+                
+            # add pollution forecast    
+            expected_forecast = self._storage.hourly_object_key(
+                town.name, reference_hour, "openweather_air_forecast"
+            )
+            if self._raw_store.exists(expected_forecast):
+                data.air_forecast_raw_key = expected_forecast
+                continue
+
+            for key in self._storage.list_raw_keys_for_city_day(
+                town.name, ref_paris, "openweather_air_forecast"
+            ):
+                if f"air_forecast_{hour_label}_raw" in key:
+                    data.air_forecast_raw_key = key
+                    logger.info(f"  LINK {town.name}: Air forecast raw from MinIO -> {self._raw_store.key_name(key)}")
                     break
 
     # =====================================================

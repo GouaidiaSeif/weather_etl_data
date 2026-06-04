@@ -117,6 +117,7 @@ def weather_etl_debug_trace() -> None:
         for town in FRENCH_TOWNS:
             weather_keys = storage.list_raw_keys_for_city_day(town.name, reference, "openweather")
             aq_keys = storage.list_raw_keys_for_city_day(town.name, reference, "aqicn")
+            # aq_forcst_keys = storage.list_raw_keys_for_city_day(town.name, reference, "openweather_air_quality")
             sample = (weather_keys[:2] + aq_keys[:2])[:4]
             if sample:
                 samples[town.name] = sample
