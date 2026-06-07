@@ -1,0 +1,1 @@
+"""BI streamlit for gold layer"""
